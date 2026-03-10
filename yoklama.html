@@ -281,8 +281,9 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans',sans-serif;m
       style="width:100%;padding:11px 14px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:15px;font-family:'Noto Sans',sans-serif;box-sizing:border-box;margin-bottom:4px;">
     <div class="login-btns">
       <button class="login-btn btn-nobetci" onclick="goKatSec()">👮 Nöbetçi Girişi</button>
-      <button class="login-btn btn-admin" onclick="goAdmin()">🔐 Admin Girişi</button>
+      <button class="login-btn btn-admin" onclick="goAdmin()" style="margin-top:4px;">🔐 Admin Girişi</button>
     </div>
+    <div id="loginNote" style="font-size:11px;color:var(--muted);text-align:center;margin-top:6px;">Nöbetçi girişi için adınızı yazın</div>
   </div>
 </div>
 
@@ -664,16 +665,11 @@ function goKatSec(){
   if(!n){showToast('⚠️ Lütfen adınızı girin');return;}
   localStorage.setItem('teacherName', n);
   localStorage.setItem('teacherName_'+todayKey, n);
-  // Firebase'e kaydet
   fetch(FB_URL+'/teachers/'+todayKey+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})}).catch(()=>{});
   goScreen('screenKat');
 }
 function goAdmin(){
-  const n=document.getElementById('teacherNameInput').value.trim();
-  if(!n){showToast('⚠️ Lütfen adınızı girin');return;}
-  localStorage.setItem('teacherName', n);
-  localStorage.setItem('teacherName_'+todayKey, n);
-  fetch(FB_URL+'/teachers/'+todayKey+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})}).catch(()=>{});
+  // Admin için isim gerekmez
   document.getElementById('pinInput').value='';
   document.getElementById('pinError').classList.add('hidden');
   goScreen('screenAdminPin');
