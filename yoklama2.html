@@ -59,7 +59,7 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans',sans-serif;m
 .header-top{display:flex;align-items:center;justify-content:space-between;gap:6px;}
 .header-left{display:flex;align-items:center;gap:8px;}
 .app-title{font-family:'Rajdhani',sans-serif;font-size:17px;font-weight:700;color:var(--accent);letter-spacing:1px;text-transform:uppercase;}
-.floor-badge{background:linear-gradient(135deg,var(--accent2),var(--accent));color:#000;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:11px;padding:3px 9px;border-radius:5px;}
+.floor-badge{background:linear-gradient(135deg,var(--accent2),var(--accent));color:#000;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:11px;padding:3px 9px;border-radius:5px;user-select:none;}
 .admin-badge{background:rgba(167,139,250,0.2);border:1px solid var(--izin);color:var(--izin);font-family:'Rajdhani',sans-serif;font-weight:700;font-size:10px;padding:3px 7px;border-radius:5px;}
 .date-badge{background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:4px 9px;font-size:11px;color:var(--muted);font-weight:600;}
 .logout-btn{background:none;border:1px solid var(--border);border-radius:7px;color:var(--muted);font-size:10px;padding:4px 9px;cursor:pointer;font-family:'Noto Sans',sans-serif;}
@@ -735,10 +735,50 @@ function goAdmin(){
 function checkPin(){
   if(document.getElementById('pinInput').value===ADMIN_PIN){
     isAdmin=true;
-    document.getElementById('katAdminPanelBtn').style.display='';
-    goScreen('screenKat');
+    // Admin direkt tüm öğrencileri görsün — 2. kattan başla
+    currentFloor=2; students=FLOORS[2].students;
+    window._activeKey = todayKey;
+    startAdminMain();
   }
   else{document.getElementById('pinError').classList.remove('hidden');document.getElementById('pinInput').value='';}
+}
+
+async function startAdminMain(){
+  attendance=Object.fromEntries(students.map(s=>[String(s.id),false]));
+  attendanceHistory={}; currentTime='Akşam';
+  document.getElementById('floorBadge').textContent=FLOORS[2].label;
+  document.getElementById('adminBadge').classList.remove('hidden');
+  document.getElementById('resetNameBtn').style.display='';
+  document.getElementById('pdfBtn').style.display='';
+  document.getElementById('currentDate').textContent=today.toLocaleDateString('tr-TR',{weekday:'short',day:'2-digit',month:'2-digit'});
+  const roomSel=document.getElementById('roomFilter');
+  roomSel.innerHTML='<option value="">Tüm</option>';
+  FLOORS[2].rooms.forEach(r=>{const o=document.createElement('option');o.value=r;o.textContent=r;roomSel.appendChild(o);});
+  // Kat değiştirme butonu ekle
+  document.getElementById('floorBadge').style.cursor='pointer';
+  document.getElementById('floorBadge').onclick=()=>adminToggleFloor();
+  document.querySelectorAll('.time-btn').forEach(b=>b.classList.toggle('active', b.getAttribute('data-time')==='Akşam'));
+  filterText='';filterRoomVal='';
+  goScreen('screenMain');
+  await loadFromStorage(currentFloor);
+  renderAll();updateStats();updateSaveBtn();
+}
+
+async function adminToggleFloor(){
+  const newFloor = currentFloor===2 ? 3 : 2;
+  currentFloor=newFloor; students=FLOORS[newFloor].students;
+  window._activeKey = todayKey;
+  attendance=Object.fromEntries(students.map(s=>[String(s.id),false]));
+  attendanceHistory={}; currentTime='Akşam';
+  document.getElementById('floorBadge').textContent=FLOORS[newFloor].label;
+  const roomSel=document.getElementById('roomFilter');
+  roomSel.innerHTML='<option value="">Tüm</option>';
+  FLOORS[newFloor].rooms.forEach(r=>{const o=document.createElement('option');o.value=r;o.textContent=r;roomSel.appendChild(o);});
+  document.querySelectorAll('.time-btn').forEach(b=>b.classList.toggle('active', b.getAttribute('data-time')==='Akşam'));
+  filterText='';filterRoomVal='';
+  await loadFromStorage(newFloor);
+  renderAll();updateStats();updateSaveBtn();
+  showToast('📋 '+FLOORS[newFloor].label+' gösteriliyor');
 }
 
 
