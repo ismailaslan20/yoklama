@@ -589,15 +589,19 @@ function saveToStorage(){
 // ── Yükleme fonksiyonu ──
 async function loadFromStorage(floor){
   showSync('⏬ Yükleniyor...','#0099ff');
+  const defaultAttendance = Object.fromEntries(FLOORS[floor].students.map(s=>[String(s.id),false]));
   try{
     const data = await loadFromCloud(floor, todayKey);
     if(data && Object.keys(data).length>0){
       attendanceHistory = stringifyHistory(data);
-      attendance = attendanceHistory[currentTime]
-        ? {...attendanceHistory[currentTime]}
-        : Object.fromEntries(FLOORS[floor].students.map(s=>[String(s.id),false]));
+      // Firebase false değerleri sildiği için default ile merge et
+      if(attendanceHistory[currentTime]){
+        attendance = {...defaultAttendance, ...attendanceHistory[currentTime]};
+      } else {
+        attendance = {...defaultAttendance};
+      }
     } else {
-      attendance = Object.fromEntries(FLOORS[floor].students.map(s=>[String(s.id),false]));
+      attendance = {...defaultAttendance};
     }
     showSync('✅ Hazır');
     setTimeout(hideSync, 1500);
@@ -607,7 +611,9 @@ async function loadFromStorage(floor){
       const saved=localStorage.getItem('yoklama_f'+floor+'_'+todayKey);
       if(saved){
         attendanceHistory=stringifyHistory(JSON.parse(saved));
-        attendance=attendanceHistory[currentTime]?{...attendanceHistory[currentTime]}:Object.fromEntries(FLOORS[floor].students.map(s=>[String(s.id),false]));
+        attendance=attendanceHistory[currentTime]
+          ? {...defaultAttendance, ...attendanceHistory[currentTime]}
+          : {...defaultAttendance};
       }
     }catch(e2){}
     showSync('⚠️ Offline mod','#fb923c');
@@ -767,22 +773,22 @@ function updateRow(id){
 async function setTime(t){
   attendanceHistory[currentTime]={...attendance};
   currentTime=t;
-  // Önce local'e bak, yoksa cloud'dan çek
+  const def = Object.fromEntries(students.map(s=>[String(s.id),false]));
   if(attendanceHistory[t]){
-    attendance={...attendanceHistory[t]};
+    attendance={...def, ...attendanceHistory[t]};
   } else {
     showSync('⏬ Yükleniyor...','#0099ff');
     try{
       const cloudData = await loadFromCloud(currentFloor, todayKey);
       if(cloudData && cloudData[t]){
         Object.assign(attendanceHistory, stringifyHistory(cloudData));
-        attendance={...attendanceHistory[t]};
+        attendance={...def, ...attendanceHistory[t]};
       } else {
-        attendance=Object.fromEntries(students.map(s=>[String(s.id),false]));
+        attendance={...def};
       }
       hideSync();
     }catch(e){
-      attendance=Object.fromEntries(students.map(s=>[String(s.id),false]));
+      attendance={...def};
       hideSync();
     }
   }
