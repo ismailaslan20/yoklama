@@ -718,8 +718,15 @@ async function startApp(floor){
 }
 
 async function logout(){
-  await saveToStorage();
+  if(currentFloor){
+    attendanceHistory[currentTime]={...attendance};
+    try{ localStorage.setItem('yoklama_f'+currentFloor+'_'+todayKey, JSON.stringify(attendanceHistory)); }catch(e){}
+    showSync('⏫ Kaydediliyor...','#facc15');
+    try{ await saveToCloud(currentFloor, todayKey, attendanceHistory); }catch(e){}
+  }
+  clearTimeout(saveTimer);
   currentFloor=null;isAdmin=false;students=[];attendance={};attendanceHistory={};
+  hideSync();
   goScreen('screenLogin');
 }
 
@@ -1262,8 +1269,8 @@ async function _buildPDF() {
 
   const H_HDR_PAGE = 6;
   const H_HDR_TBL  = 8.5;
-  const H_SIGN     = 25;  // legend kalktı, tüm alan imzaya
-  const H_USED     = MT + H_HDR_PAGE + H_HDR_TBL + H_SIGN + 3;
+  const H_SIGN     = 28;  // daha geniş imza alanı
+  const H_USED     = MT + H_HDR_PAGE + H_HDR_TBL + H_SIGN + 1;
   const H_AVAIL    = PH - H_USED;
 
   for(const [floorIdx, floor] of [[0,2],[1,3]]) {
@@ -1428,7 +1435,7 @@ async function _buildPDF() {
     });
 
     // ── 7 İMZA — her gün sütununun tam altında
-    y = rowY + 1;
+    y = rowY;
 
     // Sol boşluk (ODA+SNF+ISIM+ETUT) için boş alan
     doc.setFillColor(250,250,250);
