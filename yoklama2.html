@@ -280,12 +280,14 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans',sans-serif;m
       <div class="login-sub">Nöbet girişi için adınızı yazın</div>
     </div>
     <input id="teacherNameInput" type="text" placeholder="Adınız Soyadınız"
-      style="width:100%;padding:11px 14px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:15px;font-family:'Noto Sans',sans-serif;box-sizing:border-box;margin-bottom:4px;">
+      style="width:100%;padding:11px 14px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:15px;font-family:'Noto Sans',sans-serif;box-sizing:border-box;">
+    <input id="teacherPinInput" type="password" placeholder="4 haneli PIN (kilitleme için)" maxlength="4"
+      style="width:100%;padding:11px 14px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:15px;font-family:'Noto Sans',sans-serif;box-sizing:border-box;">
+    <div style="font-size:11px;color:var(--muted);text-align:center;margin-top:-4px;">PIN'i unutma! Kilidi sadece sen açabilirsin.</div>
     <div class="login-btns">
       <button class="login-btn btn-nobetci" onclick="goKatSec()">👮 Nöbetçi Girişi</button>
       <button class="login-btn btn-admin" onclick="goAdmin()" style="margin-top:4px;">🔐 Admin Girişi</button>
     </div>
-
   </div>
 </div>
 
@@ -689,8 +691,11 @@ let selectedFloor = null;
 function goKatSec(){
   const n=document.getElementById('teacherNameInput').value.trim();
   if(!n){showToast('⚠️ Lütfen adınızı girin');return;}
+  const pin=document.getElementById('teacherPinInput').value.trim();
+  if(!pin || pin.length < 4){showToast('⚠️ 4 haneli PIN girin');return;}
   localStorage.setItem('teacherName', n);
   window._pendingTeacherName = n;
+  window._pendingTeacherPin = pin;
   // Dropdown doldur — bugün ve dün seçeneği
   const sel = document.getElementById('nobetGunSelect');
   sel.innerHTML = '';
@@ -746,9 +751,11 @@ async function startApp(floor){
         // Aynı kişi tekrar giriyor — izin ver
         localStorage.setItem('teacherName_f'+floor+'_'+selectedKey, existing.name);
       } else {
-        // Kayıt yok — kaydet
+        // Kayıt yok — kaydet (isim + PIN)
+        const pin = window._pendingTeacherPin || '';
         localStorage.setItem('teacherName_f'+floor+'_'+selectedKey, n);
-        fetch(FB_URL+'/teachers/'+fbKey+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})}).catch(()=>{});
+        localStorage.setItem('teacherPin_f'+floor+'_'+selectedKey, pin);
+        fetch(FB_URL+'/teachers/'+fbKey+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n, pin:pin})}).catch(()=>{});
       }
     }catch(e){
       localStorage.setItem('teacherName_f'+floor+'_'+selectedKey, n);
@@ -837,27 +844,64 @@ function resetNameForDay(fbKey, label, btn){
 }
 
 
-function getLockedTimes(){ try{ return JSON.parse(localStorage.getItem('locked_'+(window._activeKey||todayKey)||'[]')||'[]'); }catch(e){return[];} }
-function isTimeLocked(t){ return getLockedTimes().includes(t); }
+async function getLockedTimes(){
+  const activeKey = window._activeKey||todayKey;
+  const fbKey = 'f'+currentFloor+'_'+activeKey;
+  try{
+    const r = await fetch(FB_URL+'/locks/'+fbKey+'.json?'+Date.now(),{cache:'no-store'});
+    const j = await r.json();
+    if(Array.isArray(j)) return j;
+  }catch(e){}
+  // Fallback localStorage
+  try{ return JSON.parse(localStorage.getItem('locked_'+activeKey)||'[]'); }catch(e){return [];}
+}
+async function isTimeLocked(t){ return (await getLockedTimes()).includes(t); }
 
-function lockCurrentTime(){
-  if(isTimeLocked(currentTime)){showToast('⚠️ Bu vakit zaten kilitli!');return;}
-  const locked = getLockedTimes();
+async function lockCurrentTime(){
+  const locked = await getLockedTimes();
+  if(locked.includes(currentTime)){
+    // Kilitliyse — PIN sor
+    const enteredPin = prompt('🔒 Kilidi açmak için PIN girin:');
+    if(!enteredPin){ return; }
+    const activeKey = window._activeKey||todayKey;
+    const fbKey = 'f'+currentFloor+'_'+activeKey;
+    let savedPin = '';
+    try{
+      const r = await fetch(FB_URL+'/teachers/'+fbKey+'.json',{cache:'no-store'});
+      const j = await r.json();
+      if(j && j.pin) savedPin = j.pin;
+    }catch(e){}
+    if(!savedPin) savedPin = localStorage.getItem('teacherPin_f'+currentFloor+'_'+activeKey)||'';
+    if(enteredPin === savedPin){
+      const newLocked = locked.filter(t=>t!==currentTime);
+      localStorage.setItem('locked_'+activeKey, JSON.stringify(newLocked));
+      fetch(FB_URL+'/locks/'+fbKey+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(newLocked)}).catch(()=>{});
+      updateSaveBtn();
+      showToast('🔓 '+currentTime+' vakti açıldı');
+    } else {
+      showToast('🚫 Yanlış PIN!');
+    }
+    return;
+  }
+  // Kilitle
   locked.push(currentTime);
-  localStorage.setItem('locked_'+(window._activeKey||todayKey), JSON.stringify(locked));
+  const activeKey = window._activeKey||todayKey;
+  const saveFbKey = 'f'+currentFloor+'_'+activeKey;
+  localStorage.setItem('locked_'+activeKey, JSON.stringify(locked));
+  fetch(FB_URL+'/locks/'+saveFbKey+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(locked)}).catch(()=>{});
   saveToStorage();
   updateSaveBtn();
   showToast('🔒 '+currentTime+' vakti kilitlendi!');
 }
 
-function updateSaveBtn(){
+async function updateSaveBtn(){
   const btn = document.getElementById('saveBtn');
   if(!btn) return;
-  // Admin için kaydet butonu gizli
   if(isAdmin){ btn.style.display='none'; return; }
   btn.style.display='';
-  if(isTimeLocked(currentTime)){
-    btn.textContent = '🔒 Kilitli';
+  const locked = await getLockedTimes();
+  if(locked.includes(currentTime)){
+    btn.textContent = '🔓 Kilidi Aç';
     btn.classList.add('locked');
   } else {
     btn.textContent = '💾 Kaydet';
@@ -873,9 +917,9 @@ function isLocked(id){
 }
 
 // ── TOGGLE ──
-function toggle(id){
+async function toggle(id){
   id=String(id);
-  if(isTimeLocked(currentTime)){showToast('🔒 Bu vakit kilitli!');return;}
+  if(await isTimeLocked(currentTime)){showToast('🔒 Bu vakit kilitli!');return;}
   if(isLocked(id)){showToast('🔒 Admin tarafından kodlandı');return;}
   const cur=attendance[id];
   attendance[id]=cur===true?false:true;
