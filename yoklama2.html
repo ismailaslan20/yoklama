@@ -336,7 +336,7 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans',sans-serif;m
       </div>
       <div style="display:flex;align-items:center;gap:5px;">
         <div class="date-badge" id="currentDate"></div>
-        <button class="logout-btn" id="resetNameBtn" style="display:none;background:#dc2626;" onclick="openAdminPanel()">🔐 Panel</button>
+        <button class="logout-btn" id="resetNameBtn" style="display:none;background:var(--surface2);color:var(--accent);border:1px solid var(--accent);" onclick="openAdminPanel()">⚙️</button>
         <button class="logout-btn" onclick="logout()">Çıkış</button>
       </div>
     </div>
@@ -933,8 +933,28 @@ function switchAdminTab(tab){
   if(tab==='atama') renderAtama();
 }
 
-async function renderTeacherList(){
+async function addTeacherToList(){
+  const input = document.getElementById('newTeacherInput');
+  const name = input.value.trim();
+  if(!name){showToast('⚠️ İsim girin');return;}
   const list = await getTeacherList();
+  if(list.find(t=>t.toLowerCase()===name.toLowerCase())){showToast('⚠️ Bu öğretmen zaten var');return;}
+  list.push(name);
+  // Önce render et, sonra kaydet
+  renderTeacherListFromData(list);
+  input.value='';
+  showToast('✅ '+name+' eklendi');
+  saveTeacherList(list);
+}
+
+async function removeTeacher(idx){
+  const list = await getTeacherList();
+  list.splice(idx,1);
+  renderTeacherListFromData(list);
+  saveTeacherList(list);
+}
+
+function renderTeacherListFromData(list){
   const container = document.getElementById('teacherListItems');
   container.innerHTML = '';
   if(!list.length){ container.innerHTML='<div style="color:var(--muted);font-size:13px;">Henüz öğretmen eklenmedi</div>'; return; }
@@ -947,24 +967,9 @@ async function renderTeacherList(){
   });
 }
 
-async function addTeacherToList(){
-  const input = document.getElementById('newTeacherInput');
-  const name = input.value.trim();
-  if(!name){showToast('⚠️ İsim girin');return;}
+async function renderTeacherList(){
   const list = await getTeacherList();
-  if(list.find(t=>t.toLowerCase()===name.toLowerCase())){showToast('⚠️ Bu öğretmen zaten var');return;}
-  list.push(name);
-  await saveTeacherList(list);
-  input.value='';
-  renderTeacherList();
-  showToast('✅ '+name+' eklendi');
-}
-
-async function removeTeacher(idx){
-  const list = await getTeacherList();
-  list.splice(idx,1);
-  await saveTeacherList(list);
-  renderTeacherList();
+  renderTeacherListFromData(list);
 }
 
 async function renderAtama(){
