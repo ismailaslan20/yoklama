@@ -291,6 +291,11 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans',sans-serif;m
 <div class="screen" id="screenKat">
   <div class="kat-wrap">
     <div class="kat-title">Hangi kattasın?</div>
+    <div style="width:100%;margin-bottom:10px;">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:4px;text-align:center;">Hangi günün yoklaması?</div>
+      <select id="nobetGunSelect" style="width:100%;padding:10px 14px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:14px;font-family:'Noto Sans',sans-serif;box-sizing:border-box;">
+      </select>
+    </div>
     <div class="kat-btns">
       <button class="kat-btn" onclick="startApp(2)">
         <div class="kat-icon">2️⃣</div>
@@ -581,7 +586,7 @@ function saveToStorage(){
   if(!currentFloor)return;
   attendanceHistory[currentTime]={...attendance};
   // localStorage'a hemen yaz
-  try{ localStorage.setItem('yoklama_f'+currentFloor+'_'+todayKey, JSON.stringify(attendanceHistory)); }catch(e){}
+  try{ localStorage.setItem('yoklama_f'+currentFloor+'_'+(window._activeKey||todayKey), JSON.stringify(attendanceHistory)); }catch(e){}
   // Cloud'a 2 saniye debounce ile yaz
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async()=>{
@@ -589,7 +594,7 @@ function saveToStorage(){
     isSaving=true;
     showSync('⏫ Kaydediliyor...','#facc15');
     try{
-      await saveToCloud(currentFloor, todayKey, attendanceHistory);
+      await saveToCloud(currentFloor, window._activeKey||todayKey, attendanceHistory);
       showSync('✅ Kaydedildi');
       setTimeout(hideSync, 2000);
     }catch(e){
@@ -605,7 +610,7 @@ async function loadFromStorage(floor){
   showSync('⏬ Yükleniyor...','#0099ff');
   const defaultAttendance = Object.fromEntries(FLOORS[floor].students.map(s=>[String(s.id),false]));
   try{
-    const data = await loadFromCloud(floor, todayKey);
+    const data = await loadFromCloud(floor, window._activeKey||todayKey);
     if(data && Object.keys(data).length>0){
       attendanceHistory = stringifyHistory(data);
       // Firebase false değerleri sildiği için default ile merge et
@@ -622,7 +627,7 @@ async function loadFromStorage(floor){
   }catch(e){
     // Offline fallback
     try{
-      const saved=localStorage.getItem('yoklama_f'+floor+'_'+todayKey);
+      const saved=localStorage.getItem('yoklama_f'+floor+'_'+(window._activeKey||todayKey));
       if(saved){
         attendanceHistory=stringifyHistory(JSON.parse(saved));
         attendance=attendanceHistory[currentTime]
@@ -640,7 +645,7 @@ async function getAllDataForFloor(floor){
   const weekDates=getWeekDates();
   const result={};
   for(const {key} of weekDates){
-    if(floor===currentFloor && key===todayKey){
+    if(floor===currentFloor && key===(window._activeKey||todayKey)){
       attendanceHistory[currentTime]={...attendance};
       result[key]={...attendanceHistory};
     } else {
@@ -664,9 +669,20 @@ function goKatSec(){
   const n=document.getElementById('teacherNameInput').value.trim();
   if(!n){showToast('⚠️ Lütfen adınızı girin');return;}
   localStorage.setItem('teacherName', n);
-  localStorage.setItem('teacherName_'+todayKey, n);
-  // Kata göre kaydet — kat seçimi sonrası yapılacak
   window._pendingTeacherName = n;
+  // Dropdown doldur — bugün ve dün seçeneği
+  const sel = document.getElementById('nobetGunSelect');
+  sel.innerHTML = '';
+  const wk = getWeekDates();
+  const todayIdx = wk.findIndex(d => d.key === todayKey);
+  // Bugün ve önceki 2 gün göster
+  for(let i = Math.max(0, todayIdx-2); i <= todayIdx; i++){
+    const opt = document.createElement('option');
+    opt.value = wk[i].key;
+    opt.textContent = wk[i].label + ' ' + wk[i].short + (i===todayIdx?' (Bugün)':' (Dün)');
+    if(i === todayIdx) opt.selected = true;
+    sel.appendChild(opt);
+  }
   goScreen('screenKat');
 }
 function goAdmin(){
@@ -683,11 +699,16 @@ function checkPin(){
 
 async function startApp(floor){
   currentFloor=floor; students=FLOORS[floor].students;
+  // Seçilen nöbet gününü kullan
+  const sel = document.getElementById('nobetGunSelect');
+  const selectedKey = sel ? sel.value : todayKey;
+  window._activeKey = selectedKey;
+
   // Nöbetçi ismini kata+tarihe göre kaydet
   if(window._pendingTeacherName){
     const n = window._pendingTeacherName;
-    const fbKey = 'f'+floor+'_'+todayKey;
-    localStorage.setItem('teacherName_f'+floor+'_'+todayKey, n);
+    const fbKey = 'f'+floor+'_'+selectedKey;
+    localStorage.setItem('teacherName_f'+floor+'_'+selectedKey, n);
     fetch(FB_URL+'/teachers/'+fbKey+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})}).catch(()=>{});
     window._pendingTeacherName = null;
   }
@@ -698,9 +719,9 @@ async function startApp(floor){
   document.getElementById('adminBadge').classList.toggle('hidden',!isAdmin);
   document.getElementById('currentDate').textContent=today.toLocaleDateString('tr-TR',{weekday:'short',day:'2-digit',month:'2-digit'});
   // Room filter
-  const sel=document.getElementById('roomFilter');
-  sel.innerHTML='<option value="">Tüm</option>';
-  FLOORS[floor].rooms.forEach(r=>{const o=document.createElement('option');o.value=r;o.textContent=r;sel.appendChild(o);});
+  const roomSel=document.getElementById('roomFilter');
+  roomSel.innerHTML='<option value="">Tüm</option>';
+  FLOORS[floor].rooms.forEach(r=>{const o=document.createElement('option');o.value=r;o.textContent=r;roomSel.appendChild(o);});
   document.querySelectorAll('.time-btn').forEach(b=>b.classList.toggle('active', b.getAttribute('data-time')==='Akşam'));
   filterText='';filterRoomVal='';
   goScreen('screenMain');
@@ -713,8 +734,8 @@ async function startApp(floor){
 function logout(){
   if(currentFloor){
     attendanceHistory[currentTime]={...attendance};
-    try{ localStorage.setItem('yoklama_f'+currentFloor+'_'+todayKey, JSON.stringify(attendanceHistory)); }catch(e){}
-    saveToCloud(currentFloor, todayKey, attendanceHistory).catch(()=>{});
+    try{ localStorage.setItem('yoklama_f'+currentFloor+'_'+(window._activeKey||todayKey), JSON.stringify(attendanceHistory)); }catch(e){}
+    saveToCloud(currentFloor, window._activeKey||todayKey, attendanceHistory).catch(()=>{});
   }
   clearTimeout(saveTimer); isSaving=false;
   location.reload();
@@ -744,7 +765,7 @@ async function setCode(id,code){
 
   showSync('⏫ Kaydediliyor...','#facc15');
   try{
-    const cloudData = await loadFromCloud(currentFloor, todayKey);
+    const cloudData = await loadFromCloud(currentFloor, window._activeKey||todayKey);
     if(cloudData && Object.keys(cloudData).length>0){
       TIMES.forEach(t=>{
         if(!attendanceHistory[t]) attendanceHistory[t] = stringifyKeys(cloudData[t] || {});
@@ -761,14 +782,14 @@ async function setCode(id,code){
   updateRow(id);updateStats();
 
   try{
-    await saveToCloud(currentFloor, todayKey, attendanceHistory);
+    await saveToCloud(currentFloor, window._activeKey||todayKey, attendanceHistory);
     showSync('✅ Kaydedildi');
     setTimeout(hideSync, 1500);
   }catch(e){
     showSync('⚠️ Offline','#fb923c');
     setTimeout(hideSync,2000);
   }
-  try{ localStorage.setItem('yoklama_f'+currentFloor+'_'+todayKey, JSON.stringify(attendanceHistory)); }catch(e){}
+  try{ localStorage.setItem('yoklama_f'+currentFloor+'_'+(window._activeKey||todayKey), JSON.stringify(attendanceHistory)); }catch(e){}
 }
 
 function updateRow(id){
@@ -813,7 +834,7 @@ async function setTime(t){
   } else {
     showSync('⏬ Yükleniyor...','#0099ff');
     try{
-      const cloudData = await loadFromCloud(currentFloor, todayKey);
+      const cloudData = await loadFromCloud(currentFloor, window._activeKey||todayKey);
       if(cloudData && cloudData[t]){
         Object.assign(attendanceHistory, stringifyHistory(cloudData));
         attendance={...def, ...attendanceHistory[t]};
