@@ -494,7 +494,7 @@ const FLOORS = {
   }
 };
 
-const CODES = ['İ','R','G','E'];
+const CODES = ['İ','R','E'];
 const TIMES = ['Akşam','Etüt','Yatsı','Uyku','Sabah','Telefon'];
 const DAYS  = ['Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi','Pazar'];
 const ADMIN_PIN = '1234';
@@ -932,11 +932,21 @@ function resetCurrent(){
   showToast(`🗑 ${currentTime} vakti temizlendi`);
 }
 function resetAll(){
-  students.forEach(s=>attendance[s.id]=false);
-  attendanceHistory={};
-  closeConfirm();renderAll();updateStats();
-  try{localStorage.removeItem('yoklama_f'+currentFloor+'_'+todayKey);}catch(e){}
-  saveToStorage();
+  // Kodlu öğrencilere dokunma (İ/R/E admin tarafından atanmış)
+  students.forEach(s=>{ if(!isLocked(s.id)) attendance[s.id]=false; });
+  // attendanceHistory'de de kodlu olanları koru
+  const preserved={};
+  TIMES.forEach(t=>{
+    if(attendanceHistory[t]){
+      preserved[t]={};
+      students.forEach(s=>{
+        const v=attendanceHistory[t][s.id];
+        if(typeof v==='string') preserved[t][s.id]=v; // kodu koru
+      });
+    }
+  });
+  attendanceHistory=preserved;
+  closeConfirm();renderAll();updateStats();saveToStorage();
   showToast('🗑 Tüm yoklama temizlendi');
 }
 
