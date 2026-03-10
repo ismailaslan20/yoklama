@@ -284,12 +284,18 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans',sans-serif;m
 <div class="screen" id="screenKat">
   <div class="kat-wrap">
     <div class="kat-title">Hangi kattasın?</div>
-    <div class="kat-btns">
-      <button class="kat-btn" onclick="startApp(2)">
+    <div id="katNameArea" style="width:100%;margin-bottom:8px;display:none;">
+      <input id="katNameInput" type="text" placeholder="Adınız Soyadınız"
+        style="width:100%;padding:10px 14px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:14px;font-family:'Noto Sans',sans-serif;box-sizing:border-box;"
+        onkeydown="if(event.key==='Enter')confirmFloor()">
+      <button class="pin-submit" style="margin-top:8px;width:100%;" onclick="confirmFloor()">Giriş Yap →</button>
+    </div>
+    <div class="kat-btns" id="katBtns">
+      <button class="kat-btn" onclick="selectFloor(2)">
         <div class="kat-icon">2️⃣</div>
         <div class="kat-info"><strong>2. Kat</strong><span>Oda 201 – 216</span></div>
       </button>
-      <button class="kat-btn" onclick="startApp(3)">
+      <button class="kat-btn" onclick="selectFloor(3)">
         <div class="kat-icon">3️⃣</div>
         <div class="kat-info"><strong>3. Kat</strong><span>Oda 301 – 316</span></div>
       </button>
@@ -494,7 +500,7 @@ const FLOORS = {
   }
 };
 
-const CODES = ['İ','R','E'];
+const CODES = ['I','R','E'];
 const TIMES = ['Akşam','Etüt','Yatsı','Uyku','Sabah','Telefon'];
 const DAYS  = ['Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi','Pazar'];
 const ADMIN_PIN = '1234';
@@ -693,8 +699,41 @@ async function getAllDataForFloor(floor){
 
 // ── NAV ──
 function goScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');}
-function goKatSec(){goScreen('screenKat');}
-function goAdmin(){document.getElementById('pinInput').value='';document.getElementById('pinError').classList.add('hidden');goScreen('screenAdminPin');}
+// ── SAYFA YÜKLENINCE ──
+window.addEventListener('load',()=>{});
+
+let selectedFloor = null;
+
+function goKatSec(){ goScreen('screenKat'); resetKatScreen(); }
+function goAdmin(){
+  document.getElementById('pinInput').value='';
+  document.getElementById('pinError').classList.add('hidden');
+  goScreen('screenAdminPin');
+}
+
+function resetKatScreen(){
+  selectedFloor=null;
+  document.getElementById('katBtns').style.display='';
+  document.getElementById('katNameArea').style.display='none';
+  document.getElementById('katNameInput').value='';
+}
+
+function selectFloor(floor){
+  selectedFloor=floor;
+  // Önceki ismi hatırla
+  const saved=localStorage.getItem('teacherName_f'+floor)||'';
+  document.getElementById('katNameInput').value=saved;
+  document.getElementById('katBtns').style.display='none';
+  document.getElementById('katNameArea').style.display='';
+  setTimeout(()=>document.getElementById('katNameInput').focus(),100);
+}
+
+function confirmFloor(){
+  const name=document.getElementById('katNameInput').value.trim();
+  if(!name){showToast('⚠️ Lütfen adınızı girin');return;}
+  localStorage.setItem('teacherName_f'+selectedFloor, name);
+  startApp(selectedFloor);
+}
 function checkPin(){
   if(document.getElementById('pinInput').value===ADMIN_PIN){isAdmin=true;goScreen('screenKat');}
   else{document.getElementById('pinError').classList.remove('hidden');document.getElementById('pinInput').value='';}
@@ -791,7 +830,7 @@ function updateRow(id){
   const locked=isLocked(id);
   let cls='student-row';
   if(st===true)cls+=' st-present';
-  else if(st==='İ')cls+=' st-izin';
+  else if(st==='I')cls+=' st-izin';
   else if(st==='R')cls+=' st-rapor';
   else if(st==='E')cls+=' st-evci';
   if(locked)cls+=' st-locked';
@@ -800,14 +839,14 @@ function updateRow(id){
   // Tik butonu — kod varsa harf göster
   let tickCls='tick-btn';
   if(st===true){ tickCls+=' ticked'; tick.textContent=''; }
-  else if(st==='İ'){ tickCls+=' code-i locked'; tick.textContent='İ'; }
+  else if(st==='I'){ tickCls+=' code-i locked'; tick.textContent='I'; }
   else if(st==='R'){ tickCls+=' code-r locked'; tick.textContent='R'; }
   else if(st==='E'){ tickCls+=' code-e locked'; tick.textContent='E'; }
   else { tick.textContent=''; }
   tick.className=tickCls;
 
   // Admin kod butonları
-  const CODE_CLS={'İ':'i','R':'r','E':'e'};
+  const CODE_CLS={'I':'i','R':'r','E':'e'};
   CODES.forEach(c=>{
     const btn=document.getElementById('code-'+c+'-'+id);
     if(btn)btn.className='code-btn'+(st===c?' active-'+CODE_CLS[c]:'')+(locked?' locked-btn':'');
@@ -877,10 +916,10 @@ function renderAll(){
     rs.forEach(s=>{
       const st=attendance[s.id];
       const locked=isLocked(s.id);
-      const CODE_CLS={'İ':'i','R':'r','E':'e'};
+      const CODE_CLS={'I':'i','R':'r','E':'e'};
       let rowCls='student-row';
       if(st===true)rowCls+=' st-present';
-      else if(st==='İ')rowCls+=' st-izin';
+      else if(st==='I')rowCls+=' st-izin';
       else if(st==='R')rowCls+=' st-rapor';
       else if(st==='E')rowCls+=' st-evci';
       if(locked)rowCls+=' st-locked';
@@ -890,7 +929,7 @@ function renderAll(){
       let tickCls='tick-btn';
       let tickContent='';
       if(st===true){ tickCls+=' ticked'; }
-      else if(st==='İ'){ tickCls+=' code-i locked'; tickContent='İ'; }
+      else if(st==='I'){ tickCls+=' code-i locked'; tickContent='I'; }
       else if(st==='R'){ tickCls+=' code-r locked'; tickContent='R'; }
       else if(st==='E'){ tickCls+=' code-e locked'; tickContent='E'; }
 
@@ -1089,7 +1128,7 @@ async function buildPrintHTML(){
             let cell='';
             if(st===true)       cell=`<span class="cv-ok">+</span>`;
             else if(st===false) cell=`<span class="cv-mt">–</span>`;
-            else if(st==='İ')   cell=`<span class="cv-i">İ</span>`;
+            else if(st==='I')   cell=`<span class="cv-i">İ</span>`;
             else if(st==='R')   cell=`<span class="cv-r">R</span>`;
             else if(st==='G')   cell=`<span class="cv-g">G</span>`;
             else if(st==='E')   cell=`<span class="cv-e">E</span>`;
@@ -1455,7 +1494,7 @@ async function _buildPDF() {
             let txt = '', r=0, g=0, b=0, fs=5.5;
             if      (st === true)  { txt='+'; r=0;   g=130; b=0;   fs=6; }
             else if (st === false) { txt='-'; r=180; g=0;   b=0; }
-            else if (st === 'İ')  { txt='I'; r=90;  g=0;   b=180; }
+            else if (st === 'I')  { txt='I'; r=90;  g=0;   b=180; }
             else if (st === 'R')  { txt='R'; r=180; g=60;  b=0; }
             else if (st === 'G')  { txt='G'; r=130; g=90;  b=0; }
             else if (st === 'E')  { txt='E'; r=0;   g=60;  b=180; }
@@ -1527,6 +1566,13 @@ async function _buildPDF() {
       // İmza çizgisi — kutunun alt 1/3'ünde
       doc.setDrawColor(0); doc.setLineWidth(0.4);
       doc.line(gx + 2, y + H_SIGN - 10, gx + gw - 2, y + H_SIGN - 10);
+
+      // Öğretmen adı varsa üste yaz
+      const tName = toASCII(localStorage.getItem('teacherName_f'+floor)||'');
+      if(tName){
+        doc.setFontSize(4.8); doc.setFont('helvetica','bold'); doc.setTextColor(0);
+        doc.text(tName, gx + gw/2, y + 5, {align:'center'});
+      }
 
       // "Belletmen Ogretmen" etiketi
       doc.setFontSize(4.5); doc.setFont('helvetica','bold'); doc.setTextColor(0);
