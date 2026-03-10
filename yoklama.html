@@ -499,12 +499,6 @@ const TIMES = ['Akşam','Etüt','Yatsı','Uyku','Sabah','Telefon'];
 const DAYS  = ['Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi','Pazar'];
 const ADMIN_PIN = '1234';
 
-// ── JSONBin ayarları ──
-const BIN_API_KEY = '$2a$10$ljjMwRULPi6ilcYnHw6Tbe4hjdPhz8.8MpsUkjgJFVacmdyjWIA4.'; // Master Key
-const BIN_BASE    = 'https://api.jsonbin.io/v3';
-let binIds = {}; // { 'f2_2026-03-10': 'binId', ... }
-const BIN_INDEX_KEY = 'yoklama_bin_index'; // hangi bin hangi güne ait
-
 let currentFloor=null, isAdmin=false, students=[];
 let attendance={}, attendanceHistory={}, currentTime='Akşam';
 let filterText='', filterRoomVal='', reportVakit='Akşam';
@@ -525,103 +519,34 @@ function showSync(msg, color='var(--accent)'){
 }
 function hideSync(){ const el=document.getElementById('syncBadge'); if(el) el.style.opacity='0'; }
 
-// ── Bin index yönetimi — cloud'dan da çek ──
-function loadBinIndex(){ try{ return JSON.parse(localStorage.getItem(BIN_INDEX_KEY)||'{}'); }catch(e){return {};} }
-function saveBinIndex(idx){ try{ localStorage.setItem(BIN_INDEX_KEY,JSON.stringify(idx)); }catch(e){} }
+// ── Firebase ayarları ──
+const FB_URL = 'https://yokama-default-rtdb.firebaseio.com';
 
-// Bin index'i cloud'da da tut (tüm cihazlar paylaşsın)
-let cloudIndexBinId = null; // Yeni key ile sıfırdan oluşacak
-
-async function loadCloudIndex(){
-  if(cloudIndexBinId){
-    try{
-      const res = await fetch(BIN_BASE+'/b/'+cloudIndexBinId+'/latest',{
-        headers:{'X-Master-Key':BIN_API_KEY},
-        cache:'no-store'
-      });
-      const j = await res.json();
-      if(j.record){ 
-        const merged = {...loadBinIndex(), ...j.record};
-        saveBinIndex(merged);
-        return merged;
-      }
-    }catch(e){}
-  }
-  return loadBinIndex();
-}
-
-async function saveCloudIndex(idx){
-  saveBinIndex(idx);
-  try{
-    if(cloudIndexBinId){
-      await fetch(BIN_BASE+'/b/'+cloudIndexBinId,{
-        method:'PUT',
-        headers:{'Content-Type':'application/json','X-Master-Key':BIN_API_KEY,'X-Bin-Versioning':'false'},
-        body:JSON.stringify(idx)
-      });
-    } else {
-      const res = await fetch(BIN_BASE+'/b',{
-        method:'POST',
-        headers:{'Content-Type':'application/json','X-Master-Key':BIN_API_KEY,'X-Bin-Name':'yoklama_index','X-Bin-Private':'false'},
-        body:JSON.stringify(idx)
-      });
-      const j = await res.json();
-      if(j.metadata?.id){
-        cloudIndexBinId = j.metadata.id;
-        localStorage.setItem('yoklama_index_bin_id', cloudIndexBinId);
-      }
-    }
-  }catch(e){}
-}
-
-// ── JSONBin'e kaydet ──
 async function saveToCloud(floor, dateKey, data){
   const key = 'f'+floor+'_'+dateKey;
-  const idx = await loadCloudIndex();
   try{
-    if(idx[key]){
-      // Mevcut bin'i güncelle (PUT)
-      await fetch(BIN_BASE+'/b/'+idx[key],{
-        method:'PUT',
-        headers:{'Content-Type':'application/json','X-Master-Key':BIN_API_KEY,'X-Bin-Versioning':'false'},
-        body:JSON.stringify(data)
-      });
-    } else {
-      // Yeni bin oluştur (POST)
-      const res = await fetch(BIN_BASE+'/b',{
-        method:'POST',
-        headers:{'Content-Type':'application/json','X-Master-Key':BIN_API_KEY,'X-Bin-Name':key,'X-Bin-Private':'false'},
-        body:JSON.stringify(data)
-      });
-      const j = await res.json();
-      if(j.metadata?.id){ idx[key]=j.metadata.id; await saveCloudIndex(idx); }
-    }
-    // localStorage'a da yaz (yedek)
+    await fetch(FB_URL+'/yoklama/'+key+'.json', {
+      method:'PUT',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(data)
+    });
     localStorage.setItem('yoklama_'+key, JSON.stringify(data));
   }catch(e){
-    // İnternet yoksa sadece localStorage'a yaz
     localStorage.setItem('yoklama_'+key, JSON.stringify(data));
     throw e;
   }
 }
 
-// ── JSONBin'den oku ──
 async function loadFromCloud(floor, dateKey){
   const key = 'f'+floor+'_'+dateKey;
-  const idx = await loadCloudIndex();
-  if(idx[key]){
-    try{
-      const res = await fetch(BIN_BASE+'/b/'+idx[key]+'/latest',{
-        headers:{'X-Master-Key':BIN_API_KEY},
-        cache:'no-store'
-      });
-      const j = await res.json();
-      return j.record || {};
-    }catch(e){}
-  }
-  // Cloud'da yoksa localStorage'a bak
+  try{
+    const res = await fetch(FB_URL+'/yoklama/'+key+'.json?'+Date.now(), {cache:'no-store'});
+    const data = await res.json();
+    if(data){ localStorage.setItem('yoklama_'+key, JSON.stringify(data)); return data; }
+  }catch(e){}
   try{ const s=localStorage.getItem('yoklama_'+key); return s?JSON.parse(s):{}; }catch(e){ return {}; }
 }
+
 
 // ── Key'leri string'e çevir (JSON parse sonrası number olabilir) ──
 function stringifyKeys(obj){
