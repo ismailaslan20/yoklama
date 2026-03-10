@@ -500,7 +500,7 @@ const DAYS  = ['Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi','
 const ADMIN_PIN = '1234';
 
 // ── JSONBin ayarları ──
-const BIN_API_KEY = '$2a$10$69aef5e503998b11ea8de94e'; // Master Key
+const BIN_API_KEY = '$2a$10$ljjMwRULPi6ilcYnHw6Tbe4hjdPhz8.8MpsUkjgJFVacmdyjWIA4.'; // Master Key
 const BIN_BASE    = 'https://api.jsonbin.io/v3';
 let binIds = {}; // { 'f2_2026-03-10': 'binId', ... }
 const BIN_INDEX_KEY = 'yoklama_bin_index'; // hangi bin hangi güne ait
@@ -530,7 +530,7 @@ function loadBinIndex(){ try{ return JSON.parse(localStorage.getItem(BIN_INDEX_K
 function saveBinIndex(idx){ try{ localStorage.setItem(BIN_INDEX_KEY,JSON.stringify(idx)); }catch(e){} }
 
 // Bin index'i cloud'da da tut (tüm cihazlar paylaşsın)
-let cloudIndexBinId = localStorage.getItem('yoklama_index_bin_id') || null;
+let cloudIndexBinId = null; // Yeni key ile sıfırdan oluşacak
 
 async function loadCloudIndex(){
   if(cloudIndexBinId){
