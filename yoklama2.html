@@ -277,13 +277,11 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans',sans-serif;m
     <div class="login-logo">📋</div>
     <div style="text-align:center;">
       <div class="login-title">YOKLAMA SİSTEMİ</div>
-      <div class="login-sub">Nöbet girişi için adınızı yazın</div>
+      <div class="login-sub">Nöbet girişi için PIN'inizi girin</div>
     </div>
-    <input id="teacherNameInput" type="text" placeholder="Adınız Soyadınız"
-      style="width:100%;padding:11px 14px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:15px;font-family:'Noto Sans',sans-serif;box-sizing:border-box;">
-    <input id="teacherPinInput" type="password" placeholder="4 haneli PIN (kilitleme için)" maxlength="4"
-      style="width:100%;padding:11px 14px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:15px;font-family:'Noto Sans',sans-serif;box-sizing:border-box;">
-    <div style="font-size:11px;color:var(--muted);text-align:center;margin-top:-4px;">PIN'i unutma! Kilidi sadece sen açabilirsin.</div>
+    <input id="teacherPinInput" type="password" placeholder="PIN'iniz" maxlength="4"
+      style="width:100%;padding:11px 14px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:20px;letter-spacing:6px;font-family:'Noto Sans',sans-serif;box-sizing:border-box;text-align:center;">
+    <div style="font-size:11px;color:var(--muted);text-align:center;margin-top:-4px;">Admin tarafından atandıysanız PIN'inizle girin</div>
     <div class="login-btns">
       <button class="login-btn btn-nobetci" onclick="goKatSec()">👮 Nöbetçi Girişi</button>
       <button class="login-btn btn-admin" onclick="goAdmin()" style="margin-top:4px;">🔐 Admin Girişi</button>
@@ -382,13 +380,29 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans',sans-serif;m
 
 <!-- ADMİN PANELİ -->
 <div class="screen" id="screenAdminPanel">
-  <div style="display:flex;flex-direction:column;height:100%;padding:20px 16px;gap:14px;box-sizing:border-box;">
+  <div style="display:flex;flex-direction:column;height:100%;padding:16px;gap:12px;box-sizing:border-box;">
     <div style="display:flex;align-items:center;gap:10px;">
       <button class="back-btn" style="margin:0;" onclick="goScreen('screenKat')">← Geri</button>
       <div style="font-family:'Rajdhani',sans-serif;font-size:20px;font-weight:700;color:var(--accent);">🔐 Admin Paneli</div>
     </div>
-    <div style="font-size:13px;color:var(--muted);margin-top:-6px;">Nöbetçi öğretmen isimlerini yönet</div>
-    <div id="adminNameList" style="display:flex;flex-direction:column;gap:8px;overflow-y:auto;flex:1;"></div>
+    <!-- Sekmeler -->
+    <div style="display:flex;gap:6px;">
+      <button id="tabAtama" onclick="switchAdminTab('atama')" style="flex:1;padding:8px;border-radius:8px;border:none;font-family:Rajdhani,sans-serif;font-weight:700;font-size:13px;cursor:pointer;background:var(--accent);color:#000;">📅 Nöbet Atama</button>
+      <button id="tabListe" onclick="switchAdminTab('liste')" style="flex:1;padding:8px;border-radius:8px;border:none;font-family:Rajdhani,sans-serif;font-weight:700;font-size:13px;cursor:pointer;background:var(--surface2);color:var(--text);">👥 Öğretmen Listesi</button>
+    </div>
+    <!-- NÖBET ATAMA SEKMESİ -->
+    <div id="panelAtama" style="display:flex;flex-direction:column;gap:8px;overflow-y:auto;flex:1;">
+      <div style="font-size:12px;color:var(--muted);">Bu haftanın her günü için 2. ve 3. kata nöbetçi ata</div>
+      <div id="atamaList" style="display:flex;flex-direction:column;gap:8px;"></div>
+    </div>
+    <!-- ÖĞRETMEN LİSTESİ SEKMESİ -->
+    <div id="panelListe" style="display:none;flex-direction:column;gap:8px;overflow-y:auto;flex:1;">
+      <div style="display:flex;gap:8px;">
+        <input id="newTeacherInput" placeholder="Öğretmen adı" style="flex:1;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px;font-family:Noto Sans,sans-serif;">
+        <button onclick="addTeacherToList()" style="padding:9px 14px;border-radius:8px;border:none;background:var(--accent);color:#000;font-weight:700;font-size:13px;cursor:pointer;">+ Ekle</button>
+      </div>
+      <div id="teacherListItems" style="display:flex;flex-direction:column;gap:6px;overflow-y:auto;"></div>
+    </div>
   </div>
 </div>
 
@@ -688,20 +702,15 @@ window.addEventListener('load',()=>{
 
 let selectedFloor = null;
 
-function goKatSec(){
-  const n=document.getElementById('teacherNameInput').value.trim();
-  if(!n){showToast('⚠️ Lütfen adınızı girin');return;}
-  const pin=document.getElementById('teacherPinInput').value.trim();
+async function goKatSec(){
+  const pin = document.getElementById('teacherPinInput').value.trim();
   if(!pin || pin.length < 4){showToast('⚠️ 4 haneli PIN girin');return;}
-  localStorage.setItem('teacherName', n);
-  window._pendingTeacherName = n;
-  window._pendingTeacherPin = pin;
-  // Dropdown doldur — bugün ve dün seçeneği
+  window._enteredPin = pin;
+  // Dropdown doldur
   const sel = document.getElementById('nobetGunSelect');
   sel.innerHTML = '';
   const wk = getWeekDates();
   const todayIdx = wk.findIndex(d => d.key === todayKey);
-  // Bugün ve önceki 2 gün göster
   for(let i = Math.max(0, todayIdx-2); i <= todayIdx; i++){
     const opt = document.createElement('option');
     opt.value = wk[i].key;
@@ -729,39 +738,40 @@ function checkPin(){
 
 async function startApp(floor){
   currentFloor=floor; students=FLOORS[floor].students;
-  // Seçilen nöbet gününü kullan
   const sel = document.getElementById('nobetGunSelect');
   const selectedKey = sel ? sel.value : todayKey;
   window._activeKey = selectedKey;
 
-  // Nöbetçi ismini kata+tarihe göre kaydet — eğer yoksa
-  if(window._pendingTeacherName){
-    const n = window._pendingTeacherName;
+  // Admin direkt geçer
+  if(!isAdmin){
+    const pin = window._enteredPin;
     const fbKey = 'f'+floor+'_'+selectedKey;
-    // Önce Firebase'de var mı kontrol et
+    // Firebase'den atamayı kontrol et
+    let assignment = null;
     try{
-      const check = await fetch(FB_URL+'/teachers/'+fbKey+'.json',{cache:'no-store'});
-      const existing = await check.json();
-      if(existing && existing.name && existing.name.trim().toLowerCase() !== n.trim().toLowerCase()){
-        // Başka biri kayıtlı — engelle
-        showToast('🚫 Bu kata '+existing.name+' giriş yaptı, kat dolu!');
-        window._pendingTeacherName = n; // sıfırlama
-        return;
-      } else if(existing && existing.name && existing.name.trim().toLowerCase() === n.trim().toLowerCase()){
-        // Aynı kişi tekrar giriyor — izin ver
-        localStorage.setItem('teacherName_f'+floor+'_'+selectedKey, existing.name);
-      } else {
-        // Kayıt yok — kaydet (isim + PIN)
-        const pin = window._pendingTeacherPin || '';
-        localStorage.setItem('teacherName_f'+floor+'_'+selectedKey, n);
-        localStorage.setItem('teacherPin_f'+floor+'_'+selectedKey, pin);
-        fetch(FB_URL+'/teachers/'+fbKey+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n, pin:pin})}).catch(()=>{});
-      }
-    }catch(e){
-      localStorage.setItem('teacherName_f'+floor+'_'+selectedKey, n);
-      fetch(FB_URL+'/teachers/'+fbKey+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})}).catch(()=>{});
+      const r = await fetch(FB_URL+'/assignments/'+fbKey+'.json',{cache:'no-store'});
+      assignment = await r.json();
+    }catch(e){}
+    if(!assignment || !assignment.name){
+      showToast('🚫 Bu güne bu kata atama yapılmamış!');
+      return;
     }
-    window._pendingTeacherName = null;
+    // PIN kontrolü
+    if(assignment.pin){
+      // PIN daha önce belirlenmişse doğrula
+      if(pin !== assignment.pin){
+        showToast('🚫 Yanlış PIN!');
+        return;
+      }
+    } else {
+      // İlk giriş — PIN belirle, kaydet
+      fetch(FB_URL+'/assignments/'+fbKey+'.json',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin:pin})}).catch(()=>{});
+      fetch(FB_URL+'/teachers/'+fbKey+'.json',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin:pin})}).catch(()=>{});
+      showToast('🔑 PIN belirlendi: '+assignment.name);
+    }
+    localStorage.setItem('teacherName', assignment.name);
+    window._activeTeacherName = assignment.name;
+    window._enteredPin = null;
   }
   attendance=Object.fromEntries(students.map(s=>[String(s.id),false]));
   attendanceHistory={}; currentTime='Akşam';
@@ -796,51 +806,132 @@ function logout(){
 }
 
 // ── ADMİN PANELİ ──
-async function openAdminPanel(){
-  goScreen('screenAdminPanel');
-  const container = document.getElementById('adminNameList');
-  container.innerHTML = '<div style="color:var(--muted);font-size:13px;">Yükleniyor...</div>';
-  // Firebase'den tüm teacher isimlerini çek
-  let teacherNames = {};
+// ── ÖĞRETMEN LİSTESİ ──
+async function getTeacherList(){
   try{
-    const r = await fetch(FB_URL+'/teachers.json?'+Date.now(),{cache:'no-store'});
+    const r = await fetch(FB_URL+'/teacherList.json?'+Date.now(),{cache:'no-store'});
     const j = await r.json();
-    if(j) teacherNames = j;
+    if(Array.isArray(j)) return j;
   }catch(e){}
-  const wk = getWeekDates();
+  try{ return JSON.parse(localStorage.getItem('teacherList')||'[]'); }catch(e){return[];}
+}
+async function saveTeacherList(list){
+  localStorage.setItem('teacherList', JSON.stringify(list));
+  fetch(FB_URL+'/teacherList.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(list)}).catch(()=>{});
+}
+
+async function getAssignments(){
+  try{
+    const r = await fetch(FB_URL+'/assignments.json?'+Date.now(),{cache:'no-store'});
+    const j = await r.json();
+    if(j) return j;
+  }catch(e){}
+  return {};
+}
+async function saveAssignment(dateKey, floor, teacherName){
+  const key = 'f'+floor+'_'+dateKey;
+  fetch(FB_URL+'/teachers/'+key+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:teacherName, pin:''})}).catch(()=>{});
+  fetch(FB_URL+'/assignments/'+key+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:teacherName, pin:''})}).catch(()=>{});
+}
+async function clearAssignment(dateKey, floor){
+  const key = 'f'+floor+'_'+dateKey;
+  fetch(FB_URL+'/teachers/'+key+'.json',{method:'DELETE'}).catch(()=>{});
+  fetch(FB_URL+'/assignments/'+key+'.json',{method:'DELETE'}).catch(()=>{});
+}
+
+function switchAdminTab(tab){
+  document.getElementById('panelAtama').style.display = tab==='atama'?'flex':'none';
+  document.getElementById('panelListe').style.display = tab==='liste'?'flex':'none';
+  document.getElementById('tabAtama').style.background = tab==='atama'?'var(--accent)':'var(--surface2)';
+  document.getElementById('tabAtama').style.color = tab==='atama'?'#000':'var(--text)';
+  document.getElementById('tabListe').style.background = tab==='liste'?'var(--accent)':'var(--surface2)';
+  document.getElementById('tabListe').style.color = tab==='liste'?'#000':'var(--text)';
+  if(tab==='liste') renderTeacherList();
+  if(tab==='atama') renderAtama();
+}
+
+async function renderTeacherList(){
+  const list = await getTeacherList();
+  const container = document.getElementById('teacherListItems');
   container.innerHTML = '';
-  // Her kat için
-  [2,3].forEach(floor => {
-    const floorDiv = document.createElement('div');
-    floorDiv.style.cssText = 'font-family:Rajdhani,sans-serif;font-size:15px;font-weight:700;color:var(--accent);margin-top:8px;';
-    floorDiv.textContent = floor+'. Kat';
-    container.appendChild(floorDiv);
-    wk.forEach(d => {
-      const fbKey = 'f'+floor+'_'+d.key;
-      const name = (teacherNames[fbKey] && teacherNames[fbKey].name) || '';
-      const row = document.createElement('div');
-      row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:10px;background:var(--surface2);border:1px solid var(--border);';
-      row.innerHTML = `
-        <div>
-          <div style="font-size:13px;font-weight:600;color:var(--text);">${d.label} ${d.short}</div>
-          <div style="font-size:12px;color:${name?'var(--accent)':'var(--muted)'};">${name || '— boş —'}</div>
-        </div>
-        ${name ? `<button onclick="resetNameForDay('${fbKey}','${d.label} ${d.short}', this)" style="padding:6px 10px;border-radius:8px;border:none;background:#dc2626;color:#fff;font-size:12px;font-weight:700;cursor:pointer;">🗑 Sil</button>` : ''}
-      `;
-      container.appendChild(row);
-    });
+  if(!list.length){ container.innerHTML='<div style="color:var(--muted);font-size:13px;">Henüz öğretmen eklenmedi</div>'; return; }
+  list.forEach((name,i)=>{
+    const row = document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-radius:10px;background:var(--surface2);border:1px solid var(--border);';
+    row.innerHTML=`<span style="font-size:13px;color:var(--text);">${name}</span>
+      <button onclick="removeTeacher(${i})" style="padding:5px 10px;border-radius:7px;border:none;background:#dc2626;color:#fff;font-size:12px;cursor:pointer;">🗑</button>`;
+    container.appendChild(row);
   });
 }
 
-function resetNameForDay(fbKey, label, btn){
-  fetch(FB_URL+'/teachers/'+fbKey+'.json',{method:'DELETE'}).catch(()=>{});
-  localStorage.removeItem('teacherName_'+fbKey);
-  // Satırı güncelle
-  const row = btn.closest('div[style]');
-  btn.remove();
-  row.querySelector('div > div:last-child').style.color = 'var(--muted)';
-  row.querySelector('div > div:last-child').textContent = '— boş —';
-  showToast('✅ '+label+' ismi silindi');
+async function addTeacherToList(){
+  const input = document.getElementById('newTeacherInput');
+  const name = input.value.trim();
+  if(!name){showToast('⚠️ İsim girin');return;}
+  const list = await getTeacherList();
+  if(list.find(t=>t.toLowerCase()===name.toLowerCase())){showToast('⚠️ Bu öğretmen zaten var');return;}
+  list.push(name);
+  await saveTeacherList(list);
+  input.value='';
+  renderTeacherList();
+  showToast('✅ '+name+' eklendi');
+}
+
+async function removeTeacher(idx){
+  const list = await getTeacherList();
+  list.splice(idx,1);
+  await saveTeacherList(list);
+  renderTeacherList();
+}
+
+async function renderAtama(){
+  const container = document.getElementById('atamaList');
+  container.innerHTML='<div style="color:var(--muted);font-size:13px;">Yükleniyor...</div>';
+  const [teacherList, assignments] = await Promise.all([getTeacherList(), getAssignments()]);
+  const wk = getWeekDates();
+  container.innerHTML='';
+  wk.forEach(d=>{
+    const dayDiv = document.createElement('div');
+    dayDiv.style.cssText='background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;';
+    dayDiv.innerHTML=`<div style="font-family:Rajdhani,sans-serif;font-weight:700;font-size:14px;color:var(--accent);">${d.label} ${d.short}</div>`;
+    [2,3].forEach(floor=>{
+      const key='f'+floor+'_'+d.key;
+      const assigned = assignments[key] ? assignments[key].name : '';
+      const hasPin = assignments[key] && assignments[key].pin;
+      const row = document.createElement('div');
+      row.style.cssText='display:flex;align-items:center;gap:8px;';
+      row.innerHTML=`
+        <span style="font-size:12px;color:var(--muted);min-width:40px;">${floor}. Kat</span>
+        <select data-date="${d.key}" data-floor="${floor}" style="flex:1;padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12px;font-family:Noto Sans,sans-serif;">
+          <option value="">— Atanmadı —</option>
+          ${teacherList.map(t=>`<option value="${t}" ${t===assigned?'selected':''}>${t}${t===assigned&&hasPin?' 🔑':''}</option>`).join('')}
+        </select>
+        <button onclick="applyAtama(this)" style="padding:6px 10px;border-radius:8px;border:none;background:var(--accent);color:#000;font-weight:700;font-size:12px;cursor:pointer;">✓</button>
+      `;
+      dayDiv.appendChild(row);
+    });
+    container.appendChild(dayDiv);
+  });
+}
+
+async function applyAtama(btn){
+  const sel = btn.previousElementSibling;
+  const dateKey = sel.dataset.date;
+  const floor = sel.dataset.floor;
+  const name = sel.value;
+  if(!name){
+    await clearAssignment(dateKey, floor);
+    showToast('✅ Atama kaldırıldı');
+  } else {
+    await saveAssignment(dateKey, floor, name);
+    showToast('✅ '+name+' atandı');
+  }
+  renderAtama();
+}
+
+async function openAdminPanel(){
+  goScreen('screenAdminPanel');
+  switchAdminTab('atama');
 }
 
 
