@@ -710,12 +710,27 @@ async function startApp(floor){
   const selectedKey = sel ? sel.value : todayKey;
   window._activeKey = selectedKey;
 
-  // Nöbetçi ismini kata+tarihe göre kaydet
+  // Nöbetçi ismini kata+tarihe göre kaydet — eğer yoksa
   if(window._pendingTeacherName){
     const n = window._pendingTeacherName;
     const fbKey = 'f'+floor+'_'+selectedKey;
-    localStorage.setItem('teacherName_f'+floor+'_'+selectedKey, n);
-    fetch(FB_URL+'/teachers/'+fbKey+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})}).catch(()=>{});
+    // Önce Firebase'de var mı kontrol et
+    try{
+      const check = await fetch(FB_URL+'/teachers/'+fbKey+'.json',{cache:'no-store'});
+      const existing = await check.json();
+      if(existing && existing.name){
+        // Zaten kayıtlı — değiştirme, sadece localStorage'a al
+        localStorage.setItem('teacherName_f'+floor+'_'+selectedKey, existing.name);
+        showToast('ℹ️ Bu güne ait nöbetçi: '+existing.name);
+      } else {
+        // Kayıt yok — kaydet
+        localStorage.setItem('teacherName_f'+floor+'_'+selectedKey, n);
+        fetch(FB_URL+'/teachers/'+fbKey+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})}).catch(()=>{});
+      }
+    }catch(e){
+      localStorage.setItem('teacherName_f'+floor+'_'+selectedKey, n);
+      fetch(FB_URL+'/teachers/'+fbKey+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n})}).catch(()=>{});
+    }
     window._pendingTeacherName = null;
   }
   attendance=Object.fromEntries(students.map(s=>[String(s.id),false]));
