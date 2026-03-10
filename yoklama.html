@@ -793,32 +793,25 @@ function updateRow(id){
   if(st===true)cls+=' st-present';
   else if(st==='İ')cls+=' st-izin';
   else if(st==='R')cls+=' st-rapor';
-  else if(st==='G')cls+=' st-gec';
   else if(st==='E')cls+=' st-evci';
   if(locked)cls+=' st-locked';
   row.className=cls;
 
-  // Tik butonu — kod varsa harf göster, yoksa normal tik
+  // Tik butonu — kod varsa harf göster
   let tickCls='tick-btn';
-  if(st===true) tickCls+=' ticked';
+  if(st===true){ tickCls+=' ticked'; tick.textContent=''; }
   else if(st==='İ'){ tickCls+=' code-i locked'; tick.textContent='İ'; }
   else if(st==='R'){ tickCls+=' code-r locked'; tick.textContent='R'; }
-  else if(st==='G'){ tickCls+=' code-g locked'; tick.textContent='G'; }
   else if(st==='E'){ tickCls+=' code-e locked'; tick.textContent='E'; }
   else { tick.textContent=''; }
-  if(st===true) tick.textContent='';
   tick.className=tickCls;
+
+  // Admin kod butonları
+  const CODE_CLS={'İ':'i','R':'r','E':'e'};
   CODES.forEach(c=>{
     const btn=document.getElementById('code-'+c+'-'+id);
-    if(btn)btn.className='code-btn'+(st===c?' active-'+c.toLowerCase():'')+(locked?' locked-btn':'');
+    if(btn)btn.className='code-btn'+(st===c?' active-'+CODE_CLS[c]:'')+(locked?' locked-btn':'');
   });
-  const pill=document.getElementById('pill-'+id);
-  if(pill){
-    if(typeof st==='string'&&CODES.includes(st)){pill.className='status-pill pill-'+st.toLowerCase();pill.textContent=st;pill.style.display='';}
-    else pill.style.display='none';
-  }
-  const lockIco=document.getElementById('lock-'+id);
-  if(lockIco)lockIco.style.display=locked?'':'none';
 }
 
 // ── TIME ──
@@ -884,26 +877,22 @@ function renderAll(){
     rs.forEach(s=>{
       const st=attendance[s.id];
       const locked=isLocked(s.id);
+      const CODE_CLS={'İ':'i','R':'r','E':'e'};
       let rowCls='student-row';
       if(st===true)rowCls+=' st-present';
       else if(st==='İ')rowCls+=' st-izin';
       else if(st==='R')rowCls+=' st-rapor';
-      else if(st==='G')rowCls+=' st-gec';
       else if(st==='E')rowCls+=' st-evci';
       if(locked)rowCls+=' st-locked';
-      const hasPill=typeof st==='string'&&CODES.includes(st);
-      const pillHtml=''; // pill kaldırıldı, kod tik butonunda gösteriliyor
-      const lockHtml=''; // kilit ikonu kaldırıldı
-      const codeHtml=isAdmin?`<div class="code-btns">${CODES.map(c=>`<button class="code-btn${st===c?' active-'+c.toLowerCase():''}" id="code-${c}-${s.id}" onclick="event.stopPropagation();setCode(${s.id},'${c}')">${c}</button>`).join('')}</div>`:'';
+      const codeHtml=isAdmin?`<div class="code-btns">${CODES.map(c=>`<button class="code-btn${st===c?' active-'+CODE_CLS[c]:''}" id="code-${c}-${s.id}" onclick="event.stopPropagation();setCode(${s.id},'${c}')">${c}</button>`).join('')}</div>`:'';
 
       // Tik butonu: kod varsa harf göster, kilitli yap
-      let tickCls=`tick-btn`;
+      let tickCls='tick-btn';
       let tickContent='';
       if(st===true){ tickCls+=' ticked'; }
-      else if(typeof st==='string'&&CODES.includes(st)){
-        tickCls+=` code-${st.toLowerCase().replace('İ','i').replace('ı','i')} locked`;
-        tickContent=st;
-      }
+      else if(st==='İ'){ tickCls+=' code-i locked'; tickContent='İ'; }
+      else if(st==='R'){ tickCls+=' code-r locked'; tickContent='R'; }
+      else if(st==='E'){ tickCls+=' code-e locked'; tickContent='E'; }
 
       html+=`<div class="${rowCls}" id="row-${s.id}" onclick="toggle(${s.id})">
         <div class="student-info">
