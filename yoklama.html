@@ -731,9 +731,11 @@ function selectFloor(floor){
 function confirmFloor(){
   const name=document.getElementById('katNameInput').value.trim();
   if(!name){showToast('⚠️ Lütfen adınızı girin');return;}
-  // Hem genel hem tarihe özel kaydet
   localStorage.setItem('teacherName_f'+selectedFloor, name);
   localStorage.setItem('teacherName_f'+selectedFloor+'_'+todayKey, name);
+  // Cloud'a da kaydet (diğer cihazlar PDF'de görsün)
+  const key = 'teacherName_f'+selectedFloor+'_'+todayKey;
+  saveToCloud('meta', key, {name}).catch(()=>{});
   startApp(selectedFloor);
 }
 function checkPin(){
@@ -884,8 +886,8 @@ async function setTime(t){
 
 // ── STATS ──
 function updateStats(){
-  const present=students.filter(s=>attendance[s.id]===true).length;
-  const coded=students.filter(s=>typeof attendance[s.id]==='string').length;
+  const present=students.filter(s=>attendance[String(s.id)]===true).length;
+  const coded=students.filter(s=>typeof attendance[String(s.id)]==='string').length;
   const total=students.length;
   const absent=total-present-coded;
   document.getElementById('statTotal').textContent=total;
@@ -911,11 +913,11 @@ function renderAll(){
   let html='';
   rooms.forEach(room=>{
     const rs=visible.filter(s=>s.room===room);
-    const pres=rs.filter(s=>attendance[s.id]===true).length;
-    const cod=rs.filter(s=>typeof attendance[s.id]==='string').length;
+    const pres=rs.filter(s=>attendance[String(s.id)]===true).length;
+    const cod=rs.filter(s=>typeof attendance[String(s.id)]==='string').length;
     html+=`<div class="room-header"><div class="room-badge">ODA ${room}</div><div class="room-divider"></div><div class="room-count">${pres} mevcut${cod?` • ${cod} kodlu`:''}</div></div>`;
     rs.forEach(s=>{
-      const st=attendance[s.id];
+      const st=attendance[String(s.id)];
       const locked=isLocked(s.id);
       const CODE_CLS={'I':'i','R':'r','E':'e'};
       let rowCls='student-row';
@@ -947,7 +949,7 @@ function renderAll(){
 }
 
 function markAllPresent(){
-  getVisible().forEach(s=>{if(!isLocked(s.id)&&attendance[s.id]===false)attendance[s.id]=true;});
+  getVisible().forEach(s=>{if(!isLocked(String(s.id))&&attendance[String(s.id)]===false)attendance[String(s.id)]=true;});
   renderAll();updateStats();saveToStorage();showToast('✅ Tümü işaretlendi');
 }
 
@@ -955,14 +957,14 @@ function markAllPresent(){
 function confirmReset(){document.getElementById('confirmPopup').classList.toggle('hidden');}
 function closeConfirm(){document.getElementById('confirmPopup').classList.add('hidden');}
 function resetCurrent(){
-  students.forEach(s=>{if(!isLocked(s.id))attendance[s.id]=false;});
+  students.forEach(s=>{if(!isLocked(String(s.id)))attendance[String(s.id)]=false;});
   delete attendanceHistory[currentTime];
   closeConfirm();renderAll();updateStats();saveToStorage();
   showToast(`🗑 ${currentTime} vakti temizlendi`);
 }
 function resetAll(){
   // Kodlu öğrencilere dokunma (İ/R/E admin tarafından atanmış)
-  students.forEach(s=>{ if(!isLocked(s.id)) attendance[s.id]=false; });
+  students.forEach(s=>{ if(!isLocked(String(s.id))) attendance[String(s.id)]=false; });
   // attendanceHistory'de de kodlu olanları koru
   const preserved={};
   TIMES.forEach(t=>{
@@ -1568,11 +1570,22 @@ async function _buildPDF() {
       doc.setDrawColor(0); doc.setLineWidth(0.4);
       doc.line(gx + 2, y + H_SIGN - 10, gx + gw - 2, y + H_SIGN - 10);
 
-      // Öğretmen adı — o güne özel, yoksa genel
-      const tName = toASCII(
+      // Öğretmen adı — önce localStorage, yoksa cloud'dan çek
+      let tName = toASCII(
         localStorage.getItem('teacherName_f'+floor+'_'+d.key) ||
         localStorage.getItem('teacherName_f'+floor) || ''
       );
+      if(!tName){
+        try{
+          const idx = await loadCloudIndex();
+          const metaKey = 'teacherName_f'+floor+'_'+d.key;
+          if(idx[metaKey]){
+            const res = await fetch(BIN_BASE+'/b/'+idx[metaKey]+'/latest',{headers:{'X-Master-Key':BIN_API_KEY},cache:'no-store'});
+            const j = await res.json();
+            if(j.record?.name) tName = toASCII(j.record.name);
+          }
+        }catch(e){}
+      }
       if(tName){
         doc.setFontSize(4.5); doc.setFont('helvetica','bold'); doc.setTextColor(0);
         doc.text(tName, gx + gw/2, y + 5, {align:'center'});
