@@ -1523,8 +1523,7 @@ async function _buildPDF() {
       // Öğretmen adı
       const tName = toASCII(
         localStorage.getItem('teacherName_'+d.key) ||
-        (teacherNames[d.key] && teacherNames[d.key].name) ||
-        localStorage.getItem('teacherName') || ''
+        (teacherNames[d.key] && teacherNames[d.key].name) || ''
       );
       if(tName){
         doc.setFontSize(4.5); doc.setFont('helvetica','bold'); doc.setTextColor(0);
