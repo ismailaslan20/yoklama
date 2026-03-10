@@ -139,6 +139,8 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans',sans-serif;m
 /* BOTTOM BAR */
 .bottom-bar{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);padding:9px 11px;padding-bottom:calc(9px + env(safe-area-inset-bottom));display:flex;gap:6px;}
 .btn{border:none;border-radius:10px;padding:11px 10px;font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:0.5px;transition:opacity 0.15s;white-space:nowrap;}
+.btn-save{background:linear-gradient(135deg,#f59e0b,#d97706);color:#000;}
+.btn-save.locked{background:#4b5563!important;color:#9ca3af!important;cursor:not-allowed;}
 .btn:active{opacity:0.75;}
 .btn-green{background:var(--accent);color:#000;flex:1;}
 .btn-blue{background:var(--accent2);color:#fff;}
@@ -366,6 +368,7 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans',sans-serif;m
   <div class="bottom-bar">
     <button class="btn btn-danger" onclick="confirmReset()">🗑</button>
     <button class="btn btn-green" onclick="markAllPresent()">✅ Tümünü İşaretle</button>
+    <button class="btn btn-save" id="saveBtn" onclick="lockCurrentTime()">💾 Kaydet</button>
     <button class="btn btn-blue" onclick="openReport()">📊 Rapor</button>
     <button class="btn btn-purple" id="pdfBtn" onclick="exportPDF()" style="display:none;">📄 Haftalık PDF</button>
   </div>
@@ -729,7 +732,7 @@ async function startApp(floor){
   filterText='';filterRoomVal='';
   goScreen('screenMain');
   await loadFromStorage(floor);
-  renderAll();updateStats();
+  renderAll();updateStats();updateSaveBtn();
   window.addEventListener('beforeunload',saveToStorage);
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')saveToStorage();});
 }
@@ -744,7 +747,36 @@ function logout(){
   location.reload();
 }
 
-// ── STATUS HELPERS ──
+// ── KİLİT SİSTEMİ ──
+function getLockedTimes(){ try{ return JSON.parse(localStorage.getItem('locked_'+(window._activeKey||todayKey)||'[]')||'[]'); }catch(e){return[];} }
+function isTimeLocked(t){ return getLockedTimes().includes(t); }
+
+function lockCurrentTime(){
+  if(isTimeLocked(currentTime)){showToast('⚠️ Bu vakit zaten kilitli!');return;}
+  const locked = getLockedTimes();
+  locked.push(currentTime);
+  localStorage.setItem('locked_'+(window._activeKey||todayKey), JSON.stringify(locked));
+  saveToStorage();
+  updateSaveBtn();
+  showToast('🔒 '+currentTime+' vakti kilitlendi!');
+}
+
+function updateSaveBtn(){
+  const btn = document.getElementById('saveBtn');
+  if(!btn) return;
+  // Admin için kaydet butonu gizli
+  if(isAdmin){ btn.style.display='none'; return; }
+  btn.style.display='';
+  if(isTimeLocked(currentTime)){
+    btn.textContent = '🔒 Kilitli';
+    btn.classList.add('locked');
+  } else {
+    btn.textContent = '💾 Kaydet';
+    btn.classList.remove('locked');
+  }
+}
+
+
 function isLocked(id){
   // Admin kodladıysa (string), nöbetçi dokunamasın
   const st=attendance[id];
@@ -754,6 +786,7 @@ function isLocked(id){
 // ── TOGGLE ──
 function toggle(id){
   id=String(id);
+  if(isTimeLocked(currentTime)){showToast('🔒 Bu vakit kilitli!');return;}
   if(isLocked(id)){showToast('🔒 Admin tarafından kodlandı');return;}
   const cur=attendance[id];
   attendance[id]=cur===true?false:true;
@@ -761,8 +794,8 @@ function toggle(id){
 }
 
 async function setCode(id,code){
-  console.log('setCode called, isAdmin:', isAdmin, 'id:', id, 'code:', code);
-  if(!isAdmin){console.log('NOT ADMIN - returning');return;}
+  if(!isAdmin){return;}
+  // Admin kilidi bypass eder
   id=String(id);
   const newVal = attendance[id]===code ? false : code;
 
@@ -851,7 +884,7 @@ async function setTime(t){
     }
   }
   document.querySelectorAll('.time-btn').forEach(b=>b.classList.toggle('active', b.getAttribute('data-time')===t));
-  renderAll();updateStats();saveToStorage();
+  renderAll();updateStats();saveToStorage();updateSaveBtn();
 }
 
 // ── STATS ──
