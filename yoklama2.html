@@ -308,7 +308,10 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans',sans-serif;m
         <div class="kat-info"><strong>3. Kat</strong><span>Oda 301 – 316</span></div>
       </button>
     </div>
-    <button class="back-btn" onclick="goScreen('screenLogin')">← Geri</button>
+    <div style="display:flex;gap:8px;width:100%;margin-top:4px;">
+      <button class="back-btn" style="flex:1;" onclick="goScreen('screenLogin')">← Geri</button>
+      <button id="katAdminPanelBtn" class="back-btn" style="flex:1;display:none;background:#dc2626;color:#fff;" onclick="openAdminPanel()">🔐 Admin Panel</button>
+    </div>
   </div>
 </div>
 
@@ -379,7 +382,7 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans',sans-serif;m
 <div class="screen" id="screenAdminPanel">
   <div style="display:flex;flex-direction:column;height:100%;padding:20px 16px;gap:14px;box-sizing:border-box;">
     <div style="display:flex;align-items:center;gap:10px;">
-      <button class="back-btn" style="margin:0;" onclick="goScreen('screenMain')">← Geri</button>
+      <button class="back-btn" style="margin:0;" onclick="goScreen('screenKat')">← Geri</button>
       <div style="font-family:'Rajdhani',sans-serif;font-size:20px;font-weight:700;color:var(--accent);">🔐 Admin Paneli</div>
     </div>
     <div style="font-size:13px;color:var(--muted);margin-top:-6px;">Nöbetçi öğretmen isimlerini yönet</div>
@@ -710,7 +713,11 @@ function goAdmin(){
   goScreen('screenAdminPin');
 }
 function checkPin(){
-  if(document.getElementById('pinInput').value===ADMIN_PIN){isAdmin=true;goScreen('screenKat');}
+  if(document.getElementById('pinInput').value===ADMIN_PIN){
+    isAdmin=true;
+    document.getElementById('katAdminPanelBtn').style.display='';
+    goScreen('screenKat');
+  }
   else{document.getElementById('pinError').classList.remove('hidden');document.getElementById('pinInput').value='';}
 }
 
@@ -730,10 +737,14 @@ async function startApp(floor){
     try{
       const check = await fetch(FB_URL+'/teachers/'+fbKey+'.json',{cache:'no-store'});
       const existing = await check.json();
-      if(existing && existing.name){
-        // Zaten kayıtlı — değiştirme, sadece localStorage'a al
+      if(existing && existing.name && existing.name.trim().toLowerCase() !== n.trim().toLowerCase()){
+        // Başka biri kayıtlı — engelle
+        showToast('🚫 Bu kata '+existing.name+' giriş yaptı, kat dolu!');
+        window._pendingTeacherName = n; // sıfırlama
+        return;
+      } else if(existing && existing.name && existing.name.trim().toLowerCase() === n.trim().toLowerCase()){
+        // Aynı kişi tekrar giriyor — izin ver
         localStorage.setItem('teacherName_f'+floor+'_'+selectedKey, existing.name);
-        showToast('ℹ️ Bu güne ait nöbetçi: '+existing.name);
       } else {
         // Kayıt yok — kaydet
         localStorage.setItem('teacherName_f'+floor+'_'+selectedKey, n);
