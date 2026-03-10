@@ -758,7 +758,8 @@ function toggle(id){
 }
 
 async function setCode(id,code){
-  if(!isAdmin)return;
+  console.log('setCode called, isAdmin:', isAdmin, 'id:', id, 'code:', code);
+  if(!isAdmin){console.log('NOT ADMIN - returning');return;}
   id=String(id);
   const newVal = attendance[id]===code ? false : code;
 
