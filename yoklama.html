@@ -507,7 +507,9 @@ let filterText='', filterRoomVal='', reportVakit='Akşam';
 let saveTimer=null, isSaving=false;
 
 const today = new Date();
-const todayKey = today.toISOString().slice(0,10);
+const todayKey = today.getFullYear() + '-' +
+  String(today.getMonth()+1).padStart(2,'0') + '-' +
+  String(today.getDate()).padStart(2,'0');
 
 // ── Sync göstergesi ──
 function showSync(msg, color='var(--accent)'){
@@ -519,14 +521,59 @@ function showSync(msg, color='var(--accent)'){
 }
 function hideSync(){ const el=document.getElementById('syncBadge'); if(el) el.style.opacity='0'; }
 
-// ── Bin index yönetimi (localStorage'da saklı) ──
+// ── Bin index yönetimi — cloud'dan da çek ──
 function loadBinIndex(){ try{ return JSON.parse(localStorage.getItem(BIN_INDEX_KEY)||'{}'); }catch(e){return {};} }
 function saveBinIndex(idx){ try{ localStorage.setItem(BIN_INDEX_KEY,JSON.stringify(idx)); }catch(e){} }
+
+// Bin index'i cloud'da da tut (tüm cihazlar paylaşsın)
+let cloudIndexBinId = localStorage.getItem('yoklama_index_bin_id') || null;
+
+async function loadCloudIndex(){
+  if(cloudIndexBinId){
+    try{
+      const res = await fetch(BIN_BASE+'/b/'+cloudIndexBinId+'/latest',{
+        headers:{'X-Master-Key':BIN_API_KEY},
+        cache:'no-store'
+      });
+      const j = await res.json();
+      if(j.record){ 
+        const merged = {...loadBinIndex(), ...j.record};
+        saveBinIndex(merged);
+        return merged;
+      }
+    }catch(e){}
+  }
+  return loadBinIndex();
+}
+
+async function saveCloudIndex(idx){
+  saveBinIndex(idx);
+  try{
+    if(cloudIndexBinId){
+      await fetch(BIN_BASE+'/b/'+cloudIndexBinId,{
+        method:'PUT',
+        headers:{'Content-Type':'application/json','X-Master-Key':BIN_API_KEY,'X-Bin-Versioning':'false'},
+        body:JSON.stringify(idx)
+      });
+    } else {
+      const res = await fetch(BIN_BASE+'/b',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','X-Master-Key':BIN_API_KEY,'X-Bin-Name':'yoklama_index','X-Bin-Private':'false'},
+        body:JSON.stringify(idx)
+      });
+      const j = await res.json();
+      if(j.metadata?.id){
+        cloudIndexBinId = j.metadata.id;
+        localStorage.setItem('yoklama_index_bin_id', cloudIndexBinId);
+      }
+    }
+  }catch(e){}
+}
 
 // ── JSONBin'e kaydet ──
 async function saveToCloud(floor, dateKey, data){
   const key = 'f'+floor+'_'+dateKey;
-  const idx = loadBinIndex();
+  const idx = await loadCloudIndex();
   try{
     if(idx[key]){
       // Mevcut bin'i güncelle (PUT)
@@ -543,7 +590,7 @@ async function saveToCloud(floor, dateKey, data){
         body:JSON.stringify(data)
       });
       const j = await res.json();
-      if(j.metadata?.id){ idx[key]=j.metadata.id; saveBinIndex(idx); }
+      if(j.metadata?.id){ idx[key]=j.metadata.id; await saveCloudIndex(idx); }
     }
     // localStorage'a da yaz (yedek)
     localStorage.setItem('yoklama_'+key, JSON.stringify(data));
@@ -557,11 +604,12 @@ async function saveToCloud(floor, dateKey, data){
 // ── JSONBin'den oku ──
 async function loadFromCloud(floor, dateKey){
   const key = 'f'+floor+'_'+dateKey;
-  const idx = loadBinIndex();
+  const idx = await loadCloudIndex();
   if(idx[key]){
     try{
       const res = await fetch(BIN_BASE+'/b/'+idx[key]+'/latest',{
-        headers:{'X-Master-Key':BIN_API_KEY}
+        headers:{'X-Master-Key':BIN_API_KEY},
+        cache:'no-store'
       });
       const j = await res.json();
       return j.record || {};
@@ -669,7 +717,11 @@ async function startApp(floor){
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')saveToStorage();});
 }
 
-function logout(){saveToStorage();currentFloor=null;isAdmin=false;students=[];attendance={};attendanceHistory={};goScreen('screenLogin');}
+async function logout(){
+  await saveToStorage();
+  currentFloor=null;isAdmin=false;students=[];attendance={};attendanceHistory={};
+  goScreen('screenLogin');
+}
 
 // ── STATUS HELPERS ──
 function isLocked(id){
