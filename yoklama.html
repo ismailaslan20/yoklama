@@ -1546,10 +1546,9 @@ async function _buildPDF() {
       doc.setDrawColor(0); doc.setLineWidth(0.4);
       doc.line(gx + 2, y + H_SIGN - 10, gx + gw - 2, y + H_SIGN - 10);
 
-      // Öğretmen adı
+      // Öğretmen adı — sadece Firebase'den oku
       const fbKey = 'f'+floor+'_'+d.key;
       const tName = toASCII(
-        localStorage.getItem('teacherName_f'+floor+'_'+d.key) ||
         (teacherNames[fbKey] && teacherNames[fbKey].name) || ''
       );
       if(tName){
