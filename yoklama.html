@@ -623,6 +623,20 @@ async function loadFromCloud(floor, dateKey){
   try{ const s=localStorage.getItem('yoklama_'+key); return s?JSON.parse(s):{}; }catch(e){ return {}; }
 }
 
+// ── Key'leri string'e çevir (JSON parse sonrası number olabilir) ──
+function stringifyKeys(obj){
+  if(!obj||typeof obj!=='object') return obj;
+  const out={};
+  Object.keys(obj).forEach(k=>{ out[String(k)]=obj[k]; });
+  return out;
+}
+function stringifyHistory(hist){
+  if(!hist||typeof hist!=='object') return hist;
+  const out={};
+  Object.keys(hist).forEach(t=>{ out[t]=stringifyKeys(hist[t]); });
+  return out;
+}
+
 // ── Ana kaydetme fonksiyonu (debounced) ──
 function saveToStorage(){
   if(!currentFloor)return;
@@ -653,7 +667,7 @@ async function loadFromStorage(floor){
   try{
     const data = await loadFromCloud(floor, todayKey);
     if(data && Object.keys(data).length>0){
-      attendanceHistory = data;
+      attendanceHistory = stringifyHistory(data);
       attendance = attendanceHistory[currentTime]
         ? {...attendanceHistory[currentTime]}
         : Object.fromEntries(FLOORS[floor].students.map(s=>[String(s.id),false]));
@@ -667,7 +681,7 @@ async function loadFromStorage(floor){
     try{
       const saved=localStorage.getItem('yoklama_f'+floor+'_'+todayKey);
       if(saved){
-        attendanceHistory=JSON.parse(saved);
+        attendanceHistory=stringifyHistory(JSON.parse(saved));
         attendance=attendanceHistory[currentTime]?{...attendanceHistory[currentTime]}:Object.fromEntries(FLOORS[floor].students.map(s=>[String(s.id),false]));
       }
     }catch(e2){}
@@ -768,7 +782,7 @@ async function setCode(id,code){
     const cloudData = await loadFromCloud(currentFloor, todayKey);
     if(cloudData && Object.keys(cloudData).length>0){
       TIMES.forEach(t=>{
-        if(!attendanceHistory[t]) attendanceHistory[t] = cloudData[t] || {};
+        if(!attendanceHistory[t]) attendanceHistory[t] = stringifyKeys(cloudData[t] || {});
       });
     }
   }catch(e){}
@@ -836,9 +850,8 @@ async function setTime(t){
     try{
       const cloudData = await loadFromCloud(currentFloor, todayKey);
       if(cloudData && cloudData[t]){
-        // Cloud'dan gelen tüm vakitleri güncelle
-        Object.assign(attendanceHistory, cloudData);
-        attendance={...cloudData[t]};
+        Object.assign(attendanceHistory, stringifyHistory(cloudData));
+        attendance={...attendanceHistory[t]};
       } else {
         attendance=Object.fromEntries(students.map(s=>[String(s.id),false]));
       }
