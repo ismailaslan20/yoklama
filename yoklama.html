@@ -748,7 +748,16 @@ function toggle(id){
 
 function setCode(id,code){
   if(!isAdmin)return;
-  attendance[id]=attendance[id]===code?false:code;
+  const newVal = attendance[id]===code ? false : code;
+  // Tüm vakitlere uygula
+  TIMES.forEach(t=>{
+    if(t===currentTime){
+      attendance[id]=newVal;
+    } else {
+      if(!attendanceHistory[t]) attendanceHistory[t]={};
+      attendanceHistory[t][id]=newVal;
+    }
+  });
   updateRow(id);updateStats();saveToStorage();
 }
 
