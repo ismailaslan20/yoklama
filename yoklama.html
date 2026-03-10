@@ -746,19 +746,41 @@ function toggle(id){
   updateRow(id);updateStats();saveToStorage();
 }
 
-function setCode(id,code){
+async function setCode(id,code){
   if(!isAdmin)return;
   const newVal = attendance[id]===code ? false : code;
-  // Tüm vakitlere uygula
-  TIMES.forEach(t=>{
-    if(t===currentTime){
-      attendance[id]=newVal;
-    } else {
-      if(!attendanceHistory[t]) attendanceHistory[t]={};
-      attendanceHistory[t][id]=newVal;
+
+  // Önce cloud'daki güncel veriyi çek (başka vakit yoklamacı yapmış olabilir)
+  showSync('⏫ Kaydediliyor...','#facc15');
+  try{
+    const cloudData = await loadFromCloud(currentFloor, todayKey);
+    if(cloudData && Object.keys(cloudData).length>0){
+      // Cloud'dan gelen vakitleri koru, sadece bu id'yi güncelle
+      TIMES.forEach(t=>{
+        if(!attendanceHistory[t]) attendanceHistory[t] = cloudData[t] || {};
+      });
     }
+  }catch(e){}
+
+  // Tüm vakitlere kodu uygula
+  TIMES.forEach(t=>{
+    if(!attendanceHistory[t]) attendanceHistory[t]={};
+    attendanceHistory[t][id]=newVal;
   });
-  updateRow(id);updateStats();saveToStorage();
+  attendance[id]=newVal;
+
+  updateRow(id);updateStats();
+
+  // Hemen cloud'a yaz (debounce yok)
+  try{
+    await saveToCloud(currentFloor, todayKey, attendanceHistory);
+    showSync('✅ Kaydedildi');
+    setTimeout(hideSync, 1500);
+  }catch(e){
+    showSync('⚠️ Offline','#fb923c');
+    setTimeout(hideSync,2000);
+  }
+  try{ localStorage.setItem('yoklama_f'+currentFloor+'_'+todayKey, JSON.stringify(attendanceHistory)); }catch(e){}
 }
 
 function updateRow(id){
@@ -800,10 +822,29 @@ function updateRow(id){
 }
 
 // ── TIME ──
-function setTime(t){
+async function setTime(t){
   attendanceHistory[currentTime]={...attendance};
   currentTime=t;
-  attendance=attendanceHistory[t]?{...attendanceHistory[t]}:Object.fromEntries(students.map(s=>[s.id,false]));
+  // Önce local'e bak, yoksa cloud'dan çek
+  if(attendanceHistory[t]){
+    attendance={...attendanceHistory[t]};
+  } else {
+    showSync('⏬ Yükleniyor...','#0099ff');
+    try{
+      const cloudData = await loadFromCloud(currentFloor, todayKey);
+      if(cloudData && cloudData[t]){
+        // Cloud'dan gelen tüm vakitleri güncelle
+        Object.assign(attendanceHistory, cloudData);
+        attendance={...cloudData[t]};
+      } else {
+        attendance=Object.fromEntries(students.map(s=>[s.id,false]));
+      }
+      hideSync();
+    }catch(e){
+      attendance=Object.fromEntries(students.map(s=>[s.id,false]));
+      hideSync();
+    }
+  }
   document.querySelectorAll('.time-btn').forEach(b=>b.classList.toggle('active', b.getAttribute('data-time')===t));
   renderAll();updateStats();saveToStorage();
 }
