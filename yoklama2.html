@@ -295,17 +295,17 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans',sans-serif;m
     <div class="kat-title">Hangi kattasın?</div>
     <div style="width:100%;margin-bottom:10px;">
       <div style="font-size:12px;color:var(--muted);margin-bottom:4px;text-align:center;">Hangi günün yoklaması?</div>
-      <select id="nobetGunSelect" style="width:100%;padding:10px 14px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:14px;font-family:'Noto Sans',sans-serif;box-sizing:border-box;">
+      <select id="nobetGunSelect" onchange="updateKatAssignments()" style="width:100%;padding:10px 14px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:14px;font-family:'Noto Sans',sans-serif;box-sizing:border-box;">
       </select>
     </div>
     <div class="kat-btns">
       <button class="kat-btn" onclick="startApp(2)">
         <div class="kat-icon">2️⃣</div>
-        <div class="kat-info"><strong>2. Kat</strong><span>Oda 201 – 216</span></div>
+        <div class="kat-info"><strong>2. Kat</strong><span id="kat2assign">Oda 201 – 216</span></div>
       </button>
       <button class="kat-btn" onclick="startApp(3)">
         <div class="kat-icon">3️⃣</div>
-        <div class="kat-info"><strong>3. Kat</strong><span>Oda 301 – 316</span></div>
+        <div class="kat-info"><strong>3. Kat</strong><span id="kat3assign">Oda 301 – 316</span></div>
       </button>
     </div>
     <div style="display:flex;gap:8px;width:100%;margin-top:4px;">
@@ -719,6 +719,7 @@ async function goKatSec(){
     sel.appendChild(opt);
   }
   goScreen('screenKat');
+  updateKatAssignments();
 }
 function goAdmin(){
   // Admin için isim gerekmez
@@ -756,18 +757,24 @@ async function startApp(floor){
       showToast('🚫 Bu güne bu kata atama yapılmamış!');
       return;
     }
-    // PIN kontrolü
-    if(assignment.pin){
+    // Kişiye ait PIN'i Firebase'den çek
+    const teacherKey = assignment.name.replace(/\s+/g,'_');
+    let savedPin = '';
+    try{
+      const r2 = await fetch(FB_URL+'/teacherPins/'+teacherKey+'.json',{cache:'no-store'});
+      const j2 = await r2.json();
+      if(j2 && j2.pin) savedPin = j2.pin;
+    }catch(e){}
+    if(savedPin){
       // PIN daha önce belirlenmişse doğrula
-      if(pin !== assignment.pin){
+      if(pin !== savedPin){
         showToast('🚫 Yanlış PIN!');
         return;
       }
     } else {
-      // İlk giriş — PIN belirle, kaydet
-      fetch(FB_URL+'/assignments/'+fbKey+'.json',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin:pin})}).catch(()=>{});
-      fetch(FB_URL+'/teachers/'+fbKey+'.json',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin:pin})}).catch(()=>{});
-      showToast('🔑 PIN belirlendi: '+assignment.name);
+      // İlk giriş — PIN belirle ve kişiye kaydet
+      fetch(FB_URL+'/teacherPins/'+teacherKey+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin:pin,name:assignment.name})}).catch(()=>{});
+      showToast('🔑 PIN belirlendi, hoş geldin '+assignment.name+'!');
     }
     localStorage.setItem('teacherName', assignment.name);
     window._activeTeacherName = assignment.name;
@@ -919,20 +926,46 @@ async function applyAtama(btn){
   const dateKey = sel.dataset.date;
   const floor = sel.dataset.floor;
   const name = sel.value;
+  btn.textContent='⏳'; btn.disabled=true;
   if(!name){
     await clearAssignment(dateKey, floor);
+    btn.textContent='✓'; btn.disabled=false;
     showToast('✅ Atama kaldırıldı');
   } else {
     await saveAssignment(dateKey, floor, name);
+    btn.textContent='✅'; btn.disabled=false;
     showToast('✅ '+name+' atandı');
+    setTimeout(()=>{ btn.textContent='✓'; },1500);
   }
-  renderAtama();
 }
 
 async function openAdminPanel(){
   goScreen('screenAdminPanel');
   switchAdminTab('atama');
 }
+
+async function updateKatAssignments(){
+  const sel = document.getElementById('nobetGunSelect');
+  if(!sel) return;
+  const dateKey = sel.value;
+  let assignments = {};
+  try{
+    const r = await fetch(FB_URL+'/assignments.json?'+Date.now(),{cache:'no-store'});
+    const j = await r.json();
+    if(j) assignments = j;
+  }catch(e){}
+  [2,3].forEach(floor=>{
+    const key = 'f'+floor+'_'+dateKey;
+    const name = assignments[key] ? assignments[key].name : '';
+    const el = document.getElementById('kat'+floor+'assign');
+    if(el){
+      el.textContent = name ? 'Sayın '+name : 'Oda '+floor+'01 – '+floor+'16';
+      el.style.color = name ? 'var(--accent)' : '';
+    }
+  });
+}
+
+
 
 
 async function getLockedTimes(){
@@ -958,9 +991,17 @@ async function lockCurrentTime(){
     const fbKey = 'f'+currentFloor+'_'+activeKey;
     let savedPin = '';
     try{
-      const r = await fetch(FB_URL+'/teachers/'+fbKey+'.json',{cache:'no-store'});
-      const j = await r.json();
-      if(j && j.pin) savedPin = j.pin;
+      const tName = (window._activeTeacherName||'').replace(/\s+/g,'_');
+      if(tName){
+        const r = await fetch(FB_URL+'/teacherPins/'+tName+'.json',{cache:'no-store'});
+        const j = await r.json();
+        if(j && j.pin) savedPin = j.pin;
+      }
+      if(!savedPin){
+        const r2 = await fetch(FB_URL+'/teachers/'+fbKey+'.json',{cache:'no-store'});
+        const j2 = await r2.json();
+        if(j2 && j2.pin) savedPin = j2.pin;
+      }
     }catch(e){}
     if(!savedPin) savedPin = localStorage.getItem('teacherPin_f'+currentFloor+'_'+activeKey)||'';
     if(enteredPin === savedPin){
