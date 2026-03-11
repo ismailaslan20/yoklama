@@ -821,17 +821,22 @@ async function startApp(floor){
     }catch(e){}
 
     // Bu kata atanmış kişiyi bul — önce bugün, sonra en yakın gelecek/geçmiş gün
-    const wk = getWeekDates();
+    // Önce BUGÜN'e bak, yoksa haftanın diğer günlerine bak
     let assignedKey = null;
     let assignment = null;
 
-    // Önce bugün ve sonrasına bak
-    for(const d of wk){
-      const key = 'f'+floor+'_'+d.key;
-      if(assignments[key] && assignments[key].name){
-        assignedKey = d.key;
-        assignment = assignments[key];
-        break; // ilk bulunan (bugün veya sonraki gün)
+    if(assignments['f'+floor+'_'+todayKey] && assignments['f'+floor+'_'+todayKey].name){
+      assignedKey = todayKey;
+      assignment = assignments['f'+floor+'_'+todayKey];
+    } else {
+      const wk = getWeekDates();
+      for(const d of wk){
+        const key = 'f'+floor+'_'+d.key;
+        if(assignments[key] && assignments[key].name){
+          assignedKey = d.key;
+          assignment = assignments[key];
+          break;
+        }
       }
     }
 
@@ -1073,14 +1078,9 @@ async function updateKatAssignments(){
     const j = await r.json();
     if(j) assignments = j;
   }catch(e){}
-  const wk = getWeekDates();
   [2,3].forEach(floor=>{
-    // Bu kata bu haftaki ilk atamayı bul
-    let name = '';
-    for(const d of wk){
-      const key = 'f'+floor+'_'+d.key;
-      if(assignments[key] && assignments[key].name){ name = assignments[key].name; break; }
-    }
+    const key = 'f'+floor+'_'+todayKey;
+    const name = assignments[key] ? assignments[key].name : '';
     const el = document.getElementById('kat'+floor+'assign');
     if(el){
       el.textContent = name ? 'Sayın '+name : 'Oda '+floor+'01 – '+floor+'16';
