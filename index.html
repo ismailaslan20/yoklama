@@ -1293,8 +1293,8 @@ function updateRow(id){
   id=String(id);
   const st=attendance[id];
   const row=document.getElementById('row-'+id);
-  const tick=document.getElementById('tick-'+id);
-  if(!row||!tick)return;
+  if(!row) return;
+  const tick=document.getElementById('tick-'+id); // admin için null olabilir
   const locked=isLocked(id);
   let cls='student-row';
   if(st===true)cls+=' st-present';
@@ -1304,14 +1304,16 @@ function updateRow(id){
   if(locked)cls+=' st-locked';
   row.className=cls;
 
-  // Tik butonu — kod varsa harf göster
-  let tickCls='tick-btn';
-  if(st===true){ tickCls+=' ticked'; tick.textContent=''; }
-  else if(st==='I'){ tickCls+=' code-i locked'; tick.textContent='I'; }
-  else if(st==='R'){ tickCls+=' code-r locked'; tick.textContent='R'; }
-  else if(st==='E'){ tickCls+=' code-e locked'; tick.textContent='E'; }
-  else { tick.textContent=''; }
-  tick.className=tickCls;
+  // Tik butonu — sadece varsa güncelle (nöbetçi için)
+  if(tick){
+    let tickCls='tick-btn';
+    if(st===true){ tickCls+=' ticked'; tick.textContent=''; }
+    else if(st==='I'){ tickCls+=' code-i locked'; tick.textContent='I'; }
+    else if(st==='R'){ tickCls+=' code-r locked'; tick.textContent='R'; }
+    else if(st==='E'){ tickCls+=' code-e locked'; tick.textContent='E'; }
+    else { tick.textContent=''; }
+    tick.className=tickCls;
+  }
 
   // Admin kod butonları
   const CODE_CLS={'I':'i','R':'r','E':'e'};
