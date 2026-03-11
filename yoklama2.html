@@ -1184,20 +1184,24 @@ async function toggle(id){
 
 async function setCode(id,code){
   if(!isAdmin){return;}
-  // Admin kilidi bypass eder
   id=String(id);
   const newVal = attendance[id]===code ? false : code;
 
   showSync('⏫ Kaydediliyor...','#facc15');
+
+  // Cloud'dan güncel veriyi çek ve merge et
   try{
     const cloudData = await loadFromCloud(currentFloor, window._activeKey||todayKey);
     if(cloudData && Object.keys(cloudData).length>0){
       TIMES.forEach(t=>{
-        if(!attendanceHistory[t]) attendanceHistory[t] = stringifyKeys(cloudData[t] || {});
+        // Cloud'daki veriyi base olarak al, attendanceHistory üzerine yaz
+        const cloudTime = stringifyKeys(cloudData[t] || {});
+        attendanceHistory[t] = {...cloudTime, ...(attendanceHistory[t]||{})};
       });
     }
   }catch(e){}
 
+  // Tüm vakitlere kodu uygula
   TIMES.forEach(t=>{
     if(!attendanceHistory[t]) attendanceHistory[t]={};
     attendanceHistory[t][id]=newVal;
