@@ -1377,7 +1377,13 @@ async function loadIzinler(){
   try{
     const r = await fetch(FB_URL+'/izinler.json?'+Date.now(),{cache:'no-store'});
     const j = await r.json();
-    _izinler = j || {};
+    if(j){
+      // Key'leri her zaman string yap
+      _izinler = {};
+      Object.keys(j).forEach(k=>{ _izinler[String(k)] = j[k]; });
+    } else {
+      _izinler = {};
+    }
   }catch(e){ _izinler = {}; }
 }
 
@@ -1394,7 +1400,7 @@ function getActiveIzin(studentId){
 }
 
 function openIzinModal(studentId){
-  _izinModalId = String(studentId);
+  _izinModalId = String(studentId);  // her zaman string
   const s = FLOORS[currentFloor].students.find(s=>String(s.id)===_izinModalId);
   document.getElementById('izinModalTitle').textContent = s ? s.name : 'İzin Ekle';
   document.getElementById('izinModalSub').textContent = 'İzin türünü ve tarih aralığını seçin';
@@ -1432,10 +1438,10 @@ function renderMevcutIzinler(){
 
 async function deleteIzin(idx){
   if(!_izinModalId) return;
-  if(!_izinler[_izinModalId]) return;
-  const id = _izinModalId;
+  const id = String(_izinModalId);
+  if(!_izinler[id] || !_izinler[id].length) return;
 
-  _izinler[id].splice(idx,1);
+  _izinler[id].splice(idx, 1);
   if(!_izinler[id].length) delete _izinler[id];
   await saveIzinlerToCloud();
 
@@ -1446,11 +1452,10 @@ async function deleteIzin(idx){
   });
   attendance[id] = false;
 
-  // Firebase yoklama verisini de güncelle
+  // Firebase'e kaydet
   const activeKey = window._activeKey||todayKey;
-  const fbKey = 'f'+currentFloor+'_'+activeKey;
   saveToCloud(currentFloor, activeKey, attendanceHistory).catch(()=>{});
-  try{ localStorage.setItem('yoklama_f'+fbKey, JSON.stringify(attendanceHistory)); }catch(e){}
+  try{ localStorage.setItem('yoklama_f'+currentFloor+'_'+activeKey, JSON.stringify(attendanceHistory)); }catch(e){}
 
   renderMevcutIzinler();
   renderAll(); updateStats();
