@@ -455,19 +455,35 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans',sans-serif;m
   </div>
 </div>
 
-<!-- KOD UYGULAMA MODAL -->
-<div class="modal-overlay hidden" id="codeModal">
-  <div class="modal-sheet" style="max-width:320px;margin:auto;padding:24px 20px;text-align:center;">
-    <div style="font-size:28px;margin-bottom:8px;" id="codeModalEmoji">📌</div>
-    <div style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:4px;" id="codeModalName"></div>
-    <div style="font-size:13px;color:var(--muted);margin-bottom:20px;" id="codeModalCode"></div>
-    <div style="display:flex;flex-direction:column;gap:10px;">
-      <button onclick="applyCode('single')" style="padding:12px;border-radius:10px;border:none;background:var(--accent);color:#000;font-size:14px;font-weight:700;cursor:pointer;" id="codeModalSingle"></button>
-      <button onclick="applyCode('all')" style="padding:12px;border-radius:10px;border:none;background:var(--surface2);color:var(--text);border:1px solid var(--border);font-size:14px;font-weight:600;cursor:pointer;">📅 Tüm vakitlere uygula</button>
-      <button onclick="closeCodeModal()" style="padding:10px;border-radius:10px;border:none;background:transparent;color:var(--muted);font-size:13px;cursor:pointer;">İptal</button>
+<!-- İZİN/KOD MODAL -->
+<div class="modal-overlay hidden" id="izinModal">
+  <div class="modal-sheet" style="max-width:360px;margin:auto;padding:24px 20px;">
+    <div style="font-size:18px;font-weight:700;color:var(--accent);margin-bottom:4px;" id="izinModalTitle">İzin / Kod Ekle</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:16px;" id="izinModalSub"></div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;">
+      <button onclick="selectIzinKod('I')" id="izinKodI" style="flex:1;padding:10px;border-radius:8px;border:2px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px;font-weight:700;cursor:pointer;">🏠 İzin (I)</button>
+      <button onclick="selectIzinKod('R')" id="izinKodR" style="flex:1;padding:10px;border-radius:8px;border:2px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px;font-weight:700;cursor:pointer;">🏥 Rapor (R)</button>
+      <button onclick="selectIzinKod('E')" id="izinKodE" style="flex:1;padding:10px;border-radius:8px;border:2px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px;font-weight:700;cursor:pointer;">🌙 Evci (E)</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;">
+      <div style="flex:1;">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">Başlangıç</div>
+        <input type="date" id="izinBaslangic" style="width:100%;padding:8px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px;box-sizing:border-box;">
+      </div>
+      <div style="flex:1;">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">Bitiş</div>
+        <input type="date" id="izinBitis" style="width:100%;padding:8px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px;box-sizing:border-box;">
+      </div>
+    </div>
+    <!-- Mevcut izinler -->
+    <div id="mevcutIzinler" style="margin-bottom:12px;"></div>
+    <div style="display:flex;gap:8px;">
+      <button onclick="saveIzin()" style="flex:2;padding:11px;border-radius:10px;border:none;background:var(--accent);color:#000;font-size:14px;font-weight:700;cursor:pointer;">✅ Kaydet</button>
+      <button onclick="document.getElementById('izinModal').classList.add('hidden')" style="flex:1;padding:11px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-size:13px;cursor:pointer;">İptal</button>
     </div>
   </div>
 </div>
+
 
 <!-- RAPOR MODAL -->
 <div class="modal-overlay hidden" id="reportModal" onclick="closeReportBg(event)">
@@ -697,6 +713,7 @@ async function loadFromStorage(floor){
   showSync('⏬ Yükleniyor...','#0099ff');
   _lockedTimes = [];
   await loadLockedTimes();
+  await loadIzinler();
   const defaultAttendance = Object.fromEntries(FLOORS[floor].students.map(s=>[String(s.id),false]));
   try{
     const data = await loadFromCloud(floor, window._activeKey||todayKey);
@@ -713,6 +730,7 @@ async function loadFromStorage(floor){
     }
     showSync('✅ Hazır');
     setTimeout(hideSync, 1500);
+    applyIzinlerToAttendance();
   }catch(e){
     // Offline fallback
     try{
@@ -1219,73 +1237,111 @@ async function toggle(id){
   updateRow(id);updateStats();saveToStorage();
 }
 
-let _pendingCode = null;
+// ══════════════════════════════════════
+// İZİN / KOD SİSTEMİ (tarih aralıklı)
+// ══════════════════════════════════════
+let _izinler = {};
+let _izinModalId = null;
+let _selectedIzinKod = 'I';
 
-function setCode(id, code){
-  if(!isAdmin){return;}
-  id = String(id);
-  const newVal = attendance[id]===code ? false : code;
-  _pendingCode = {id, newVal};
-
-  const s = FLOORS[currentFloor].students.find(s=>String(s.id)===id);
-  const emoji = newVal==='I'?'🏠':newVal==='R'?'🏥':newVal==='E'?'🌙':newVal===false?'❌':'📌';
-  const kodYazi = newVal===false ? 'Kodu kaldır' : 'Kod: '+newVal;
-
-  document.getElementById('codeModalEmoji').textContent = emoji;
-  document.getElementById('codeModalName').textContent = s ? s.name : '';
-  document.getElementById('codeModalCode').textContent = kodYazi;
-  document.getElementById('codeModalSingle').textContent = '✅ Sadece '+currentTime+' vakti';
-  document.getElementById('codeModal').classList.remove('hidden');
-}
-
-function closeCodeModal(){
-  document.getElementById('codeModal').classList.add('hidden');
-  _pendingCode = null;
-}
-
-async function applyCode(mode){
-  if(!_pendingCode) return;
-  const {id, newVal} = _pendingCode;
-  closeCodeModal();
-
-  showSync('⏫ Kaydediliyor...','#facc15');
-
-  // Cloud'dan güncel veriyi çek ve merge et
+async function loadIzinler(){
   try{
-    const cloudData = await loadFromCloud(currentFloor, window._activeKey||todayKey);
-    if(cloudData && Object.keys(cloudData).length>0){
-      TIMES.forEach(t=>{
-        const cloudTime = stringifyKeys(cloudData[t] || {});
-        attendanceHistory[t] = {...cloudTime, ...(attendanceHistory[t]||{})};
-      });
-    }
+    const r = await fetch(FB_URL+'/izinler.json?'+Date.now(),{cache:'no-store'});
+    const j = await r.json();
+    _izinler = j || {};
+  }catch(e){ _izinler = {}; }
+}
+
+async function saveIzinlerToCloud(){
+  try{
+    await fetch(FB_URL+'/izinler.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(_izinler)});
   }catch(e){}
+}
 
-  if(mode==='all'){
-    TIMES.forEach(t=>{
-      if(!attendanceHistory[t]) attendanceHistory[t]={};
-      attendanceHistory[t][id] = newVal;
-    });
-  } else {
-    if(!attendanceHistory[currentTime]) attendanceHistory[currentTime]={};
-    attendanceHistory[currentTime][id] = newVal;
-  }
+function getActiveIzin(studentId){
+  const list = _izinler[String(studentId)] || [];
+  const activeDate = (window._activeKey||todayKey).replace(/_/g,'-');
+  return list.find(iz => iz.baslangic <= activeDate && iz.bitis >= activeDate) || null;
+}
 
-  // Aktif vakitteki attendance'ı güncelle
-  attendance[id] = attendanceHistory[currentTime][id] !== undefined
-    ? attendanceHistory[currentTime][id]
-    : newVal;
+function openIzinModal(studentId){
+  _izinModalId = String(studentId);
+  const s = FLOORS[currentFloor].students.find(s=>String(s.id)===_izinModalId);
+  document.getElementById('izinModalTitle').textContent = s ? s.name : 'İzin Ekle';
+  document.getElementById('izinModalSub').textContent = 'İzin türünü ve tarih aralığını seçin';
+  const fmt = d => d.toISOString().split('T')[0];
+  document.getElementById('izinBaslangic').value = fmt(today);
+  document.getElementById('izinBitis').value = fmt(today);
+  selectIzinKod('I');
+  renderMevcutIzinler();
+  document.getElementById('izinModal').classList.remove('hidden');
+}
 
-  updateRow(id); updateStats();
+function selectIzinKod(kod){
+  _selectedIzinKod = kod;
+  ['I','R','E'].forEach(k=>{
+    const btn = document.getElementById('izinKod'+k);
+    if(!btn) return;
+    const isActive = k===kod;
+    btn.style.background = isActive ? (k==='I'?'rgba(167,139,250,0.3)':k==='R'?'rgba(251,146,60,0.3)':'rgba(96,165,250,0.3)') : 'var(--surface2)';
+    btn.style.borderColor = isActive ? (k==='I'?'var(--izin)':k==='R'?'var(--rapor)':'var(--evci)') : 'var(--border)';
+    btn.style.color = isActive ? (k==='I'?'var(--izin)':k==='R'?'var(--rapor)':'var(--evci)') : 'var(--text)';
+  });
+}
 
-  try{
-    await saveToCloud(currentFloor, window._activeKey||todayKey, attendanceHistory);
-    showSync('✅ Kaydedildi');
-    setTimeout(hideSync, 1500);
-  }catch(e){
-    showSync('⚠️ Offline','#fb923c');
-    setTimeout(hideSync,2000);
-  }
+function renderMevcutIzinler(){
+  const list = _izinler[_izinModalId] || [];
+  const container = document.getElementById('mevcutIzinler');
+  if(!list.length){ container.innerHTML=''; return; }
+  container.innerHTML = `<div style="font-size:11px;color:var(--muted);margin-bottom:6px;">Mevcut izinler:</div>`
+    + list.map((iz,i)=>`
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);margin-bottom:4px;font-size:12px;">
+        <span>${iz.kod==='I'?'🏠':iz.kod==='R'?'🏥':'🌙'} <b>${iz.kod}</b> — ${iz.baslangic} / ${iz.bitis}</span>
+        <button onclick="deleteIzin(${i})" style="padding:2px 7px;border-radius:5px;border:none;background:#dc2626;color:#fff;font-size:11px;cursor:pointer;">🗑</button>
+      </div>`).join('');
+}
+
+async function deleteIzin(idx){
+  if(!_izinModalId) return;
+  if(!_izinler[_izinModalId]) return;
+  _izinler[_izinModalId].splice(idx,1);
+  if(!_izinler[_izinModalId].length) delete _izinler[_izinModalId];
+  await saveIzinlerToCloud();
+  renderMevcutIzinler();
+  applyIzinlerToAttendance();
+  renderAll(); updateStats();
+  showToast('🗑 İzin silindi');
+}
+
+async function saveIzin(){
+  const bas = document.getElementById('izinBaslangic').value;
+  const bit = document.getElementById('izinBitis').value;
+  if(!bas||!bit){ showToast('⚠️ Tarih seçin'); return; }
+  if(bas>bit){ showToast('⚠️ Başlangıç bitişten büyük olamaz'); return; }
+  if(!_izinler[_izinModalId]) _izinler[_izinModalId]=[];
+  _izinler[_izinModalId].push({kod:_selectedIzinKod, baslangic:bas, bitis:bit});
+  await saveIzinlerToCloud();
+  document.getElementById('izinModal').classList.add('hidden');
+  applyIzinlerToAttendance();
+  renderAll(); updateStats();
+  showToast('✅ İzin kaydedildi');
+}
+
+function applyIzinlerToAttendance(){
+  const activeDate = (window._activeKey||todayKey).replace(/_/g,'-');
+  students.forEach(s=>{
+    const id = String(s.id);
+    const list = _izinler[id] || [];
+    const activeIzin = list.find(iz => iz.baslangic <= activeDate && iz.bitis >= activeDate);
+    if(activeIzin){
+      TIMES.forEach(t=>{
+        if(!attendanceHistory[t]) attendanceHistory[t]={};
+        attendanceHistory[t][id] = activeIzin.kod;
+      });
+      attendance[id] = activeIzin.kod;
+    }
+  });
+  saveToCloud(currentFloor, window._activeKey||todayKey, attendanceHistory).catch(()=>{});
   try{ localStorage.setItem('yoklama_f'+currentFloor+'_'+(window._activeKey||todayKey), JSON.stringify(attendanceHistory)); }catch(e){}
 }
 
@@ -1384,17 +1440,24 @@ function renderAll(){
     html+=`<div class="room-header"><div class="room-badge">ODA ${room}</div><div class="room-divider"></div><div class="room-count">${pres} mevcut${cod?` • ${cod} kodlu`:''}</div>${!isAdmin?`<button onclick="markRoomPresent(${room})" style="margin-left:auto;padding:3px 8px;border-radius:6px;border:none;background:var(--present);color:#000;font-size:11px;font-weight:700;cursor:pointer;">✅ Odayı İşaretle</button>`:''}</div>`;
     rs.forEach(s=>{
       const st=attendance[String(s.id)];
-      const locked=isLocked(s.id);
-      const CODE_CLS={'I':'i','R':'r','E':'e'};
       let rowCls='student-row';
       if(st===true)rowCls+=' st-present';
       else if(st==='I')rowCls+=' st-izin';
       else if(st==='R')rowCls+=' st-rapor';
       else if(st==='E')rowCls+=' st-evci';
-      if(locked)rowCls+=' st-locked';
-      const codeHtml=isAdmin?`<div class="code-btns">${CODES.map(c=>`<button class="code-btn${st===c?' active-'+CODE_CLS[c]:''}" id="code-${c}-${s.id}" onclick="event.stopPropagation();setCode(${s.id},'${c}')">${c}</button>`).join('')}</div>`:'';
 
-      // Tik butonu: admin için gizle
+      // Aktif izin varsa badge göster
+      const activeIzin = getActiveIzin(s.id);
+      const izinBadge = activeIzin
+        ? `<span style="font-size:10px;padding:2px 6px;border-radius:5px;background:${activeIzin.kod==='I'?'rgba(167,139,250,0.2)':activeIzin.kod==='R'?'rgba(251,146,60,0.2)':'rgba(96,165,250,0.2)'};color:${activeIzin.kod==='I'?'var(--izin)':activeIzin.kod==='R'?'var(--rapor)':'var(--evci)'};font-weight:700;margin-right:4px;">${activeIzin.kod==='I'?'🏠 İzin':activeIzin.kod==='R'?'🏥 Rapor':'🌙 Evci'} • ${activeIzin.bitis}</span>`
+        : '';
+
+      // Admin: + butonu her satırda, izinli ise badge de göster
+      const adminHtml = isAdmin
+        ? `<div style="display:flex;align-items:center;gap:4px;">${izinBadge}<button onclick="event.stopPropagation();openIzinModal(${s.id})" style="width:26px;height:26px;border-radius:6px;border:1.5px solid var(--border);background:var(--surface2);color:var(--accent);font-size:16px;font-weight:700;cursor:pointer;line-height:1;">+</button></div>`
+        : '';
+
+      // Tik butonu (nöbetçi için)
       let tickCls='tick-btn';
       let tickContent='';
       if(st===true){ tickCls+=' ticked'; }
@@ -1408,7 +1471,7 @@ function renderAll(){
           <div class="student-name">${s.name}</div>
           <div class="student-meta">${s.cls} • Oda ${s.room}</div>
         </div>
-        <div class="status-area">${codeHtml}${tickHtml}</div>
+        <div class="status-area">${adminHtml}${tickHtml}</div>
       </div>`;
     });
   });
