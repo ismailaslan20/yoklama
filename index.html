@@ -1437,8 +1437,35 @@ async function deleteIzin(idx){
   _izinler[_izinModalId].splice(idx,1);
   if(!_izinler[_izinModalId].length) delete _izinler[_izinModalId];
   await saveIzinlerToCloud();
+
+  // Bu öğrencinin tüm vakitlerindeki kodu Firebase'den de temizle
+  const id = _izinModalId;
+  const activeKey = window._activeKey||todayKey;
+  const fbKey = 'f'+currentFloor+'_'+activeKey;
+  try{
+    const r = await fetch(FB_URL+'/yoklama/'+fbKey+'.json?'+Date.now(),{cache:'no-store'});
+    const cloudData = await r.json();
+    if(cloudData){
+      TIMES.forEach(t=>{
+        if(cloudData[t] && cloudData[t][id] !== undefined){
+          cloudData[t][id] = false;
+        }
+      });
+      await fetch(FB_URL+'/yoklama/'+fbKey+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(cloudData)});
+      // Local'i de güncelle
+      Object.assign(attendanceHistory, stringifyHistory(cloudData));
+    }
+  }catch(e){}
+
+  // attendance'dan da temizle
+  if(typeof attendance[id]==='string') attendance[id] = false;
+  TIMES.forEach(t=>{
+    if(attendanceHistory[t] && typeof attendanceHistory[t][id]==='string'){
+      attendanceHistory[t][id] = false;
+    }
+  });
+
   renderMevcutIzinler();
-  applyIzinlerToAttendance();
   renderAll(); updateStats();
   showToast('🗑 İzin silindi');
 }
