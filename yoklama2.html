@@ -61,7 +61,7 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans',sans-serif;m
 .app-title{font-family:'Rajdhani',sans-serif;font-size:17px;font-weight:700;color:var(--accent);letter-spacing:1px;text-transform:uppercase;}
 .floor-badge{background:linear-gradient(135deg,var(--accent2),var(--accent));color:#000;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:11px;padding:3px 9px;border-radius:5px;user-select:none;}
 .admin-badge{background:rgba(167,139,250,0.2);border:1px solid var(--izin);color:var(--izin);font-family:'Rajdhani',sans-serif;font-weight:700;font-size:10px;padding:3px 7px;border-radius:5px;}
-.date-badge{background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:4px 9px;font-size:11px;color:var(--muted);font-weight:600;}
+.date-badge{background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:4px 9px;font-size:11px;color:var(--muted);font-weight:600;white-space:nowrap;}
 .logout-btn{background:none;border:1px solid var(--border);border-radius:7px;color:var(--muted);font-size:10px;padding:4px 9px;cursor:pointer;font-family:'Noto Sans',sans-serif;}
 .time-selector{display:flex;gap:5px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none;}
 .time-selector::-webkit-scrollbar{display:none;}
@@ -720,11 +720,19 @@ async function getAllDataForFloor(floor){
 function goScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');}
 // ── SAYFA YÜKLENINCE ──
 window.addEventListener('load',()=>{
-  const saved=localStorage.getItem('teacherName')||'';
-  if(saved) document.getElementById('teacherNameInput').value=saved;
   // PDF butonu sadece PC'de görünsün
   const isDesktop = window.innerWidth >= 768 && !/Mobi|Android/i.test(navigator.userAgent);
   if(isDesktop) document.getElementById('pdfBtn').style.display='';
+  // Canlı saat
+  function updateClock(){
+    const now = new Date();
+    const tarih = now.toLocaleDateString('tr-TR',{weekday:'short',day:'2-digit',month:'2-digit'});
+    const saat = now.toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});
+    const el = document.getElementById('currentDate');
+    if(el) el.textContent = tarih+' • '+saat;
+  }
+  updateClock();
+  setInterval(updateClock, 1000);
 });
 
 let selectedFloor = null;
@@ -760,7 +768,7 @@ async function startAdminMain(){
   const fb = document.getElementById('adminFloorBtns');
   fb.style.display='flex'; fb.style.gap='4px';
   updateFloorBtns(2);
-  document.getElementById('currentDate').textContent=today.toLocaleDateString('tr-TR',{weekday:'short',day:'2-digit',month:'2-digit'});
+  
   const roomSel=document.getElementById('roomFilter');
   roomSel.innerHTML='<option value="">Tüm</option>';
   FLOORS[2].rooms.forEach(r=>{const o=document.createElement('option');o.value=r;o.textContent=r;roomSel.appendChild(o);});
@@ -897,7 +905,7 @@ async function continueStartApp(floor, selectedKey){
   if(isAdmin){ 
     document.getElementById('resetNameBtn').style.display='';
   }
-  document.getElementById('currentDate').textContent=today.toLocaleDateString('tr-TR',{weekday:'short',day:'2-digit',month:'2-digit'});
+  
   // Room filter
   const roomSel=document.getElementById('roomFilter');
   roomSel.innerHTML='<option value="">Tüm</option>';
