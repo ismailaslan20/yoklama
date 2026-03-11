@@ -309,11 +309,6 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans',sans-serif;m
 <div class="screen" id="screenKat">
   <div class="kat-wrap">
     <div class="kat-title">Hangi kattasın?</div>
-    <div style="width:100%;margin-bottom:10px;">
-      <div style="font-size:12px;color:var(--muted);margin-bottom:4px;text-align:center;">Hangi günün yoklaması?</div>
-      <select id="nobetGunSelect" onchange="updateKatAssignments()" style="width:100%;padding:10px 14px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:14px;font-family:'Noto Sans',sans-serif;box-sizing:border-box;">
-      </select>
-    </div>
     <div class="kat-btns">
       <button class="kat-btn" onclick="startApp(2)">
         <div class="kat-icon">2️⃣</div>
@@ -735,18 +730,6 @@ window.addEventListener('load',()=>{
 let selectedFloor = null;
 
 async function goKatSec(){
-  // Dropdown doldur
-  const sel = document.getElementById('nobetGunSelect');
-  sel.innerHTML = '';
-  const wk = getWeekDates();
-  const todayIdx = wk.findIndex(d => d.key === todayKey);
-  for(let i = Math.max(0, todayIdx-2); i <= todayIdx; i++){
-    const opt = document.createElement('option');
-    opt.value = wk[i].key;
-    opt.textContent = wk[i].label + ' ' + wk[i].short + (i===todayIdx?' (Bugün)':' (Dün)');
-    if(i === todayIdx) opt.selected = true;
-    sel.appendChild(opt);
-  }
   goScreen('screenKat');
   updateKatAssignments();
 }
@@ -821,17 +804,35 @@ async function startApp(floor){
   window._activeKey = selectedKey;
 
   if(!isAdmin){
-    const fbKey = 'f'+floor+'_'+selectedKey;
-    // Atama var mı kontrol et
-    let assignment = null;
+    // Tüm atamaları çek, bu kata bu nöbetçiyi hangi güne atanmış bul
+    let assignments = {};
     try{
-      const r = await fetch(FB_URL+'/assignments/'+fbKey+'.json',{cache:'no-store'});
-      assignment = await r.json();
+      const r = await fetch(FB_URL+'/assignments.json',{cache:'no-store'});
+      const j = await r.json();
+      if(j) assignments = j;
     }catch(e){}
-    if(!assignment || !assignment.name){
-      showToast('🚫 Bu güne bu kata atama yapılmamış!');
+
+    // Bu kata atanmış kişiyi bul — önce bugün, sonra en yakın gelecek/geçmiş gün
+    const wk = getWeekDates();
+    let assignedKey = null;
+    let assignment = null;
+
+    // Önce bugün ve sonrasına bak
+    for(const d of wk){
+      const key = 'f'+floor+'_'+d.key;
+      if(assignments[key] && assignments[key].name){
+        assignedKey = d.key;
+        assignment = assignments[key];
+        break; // ilk bulunan (bugün veya sonraki gün)
+      }
+    }
+
+    if(!assignment){
+      showToast('🚫 Bu kata bu hafta atama yapılmamış!');
       return;
     }
+
+    window._activeKey = assignedKey;
     // PIN popup aç
     const teacherKey = assignment.name.replace(/\s+/g,'_');
     let savedPin = '';
@@ -1058,18 +1059,20 @@ async function openAdminPanel(){
 }
 
 async function updateKatAssignments(){
-  const sel = document.getElementById('nobetGunSelect');
-  if(!sel) return;
-  const dateKey = sel.value;
   let assignments = {};
   try{
     const r = await fetch(FB_URL+'/assignments.json?'+Date.now(),{cache:'no-store'});
     const j = await r.json();
     if(j) assignments = j;
   }catch(e){}
+  const wk = getWeekDates();
   [2,3].forEach(floor=>{
-    const key = 'f'+floor+'_'+dateKey;
-    const name = assignments[key] ? assignments[key].name : '';
+    // Bu kata bu haftaki ilk atamayı bul
+    let name = '';
+    for(const d of wk){
+      const key = 'f'+floor+'_'+d.key;
+      if(assignments[key] && assignments[key].name){ name = assignments[key].name; break; }
+    }
     const el = document.getElementById('kat'+floor+'assign');
     if(el){
       el.textContent = name ? 'Sayın '+name : 'Oda '+floor+'01 – '+floor+'16';
