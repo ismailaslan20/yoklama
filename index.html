@@ -1371,10 +1371,12 @@ async function resetAllIzinler(){
 }
 
 function deleteStudent(id){
-  if(idx===-1) return;
+  id = parseInt(id);
+  const floor = FLOORS[_ogrKatSec];
+  const idx = floor.students.findIndex(s=>s.id===id);
+  if(idx===-1){ showToast('⚠️ Öğrenci bulunamadı'); return; }
   const name = floor.students[idx].name;
   floor.students.splice(idx,1);
-  // Boş odaları temizle
   floor.rooms = [...new Set(floor.students.map(s=>s.room))].sort((a,b)=>parseInt(a)-parseInt(b));
   renderOgrenciList();
   saveFloorsToCloud();
