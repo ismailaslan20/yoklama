@@ -445,6 +445,16 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans',sans-serif;m
   </div>
 </div>
 
+<!-- PDF TARİH SEÇİM MODAL -->
+<div class="modal-overlay hidden" id="pdfDateModal">
+  <div class="modal-sheet" style="max-width:340px;margin:auto;padding:24px 20px;">
+    <div style="font-size:22px;text-align:center;margin-bottom:8px;">📄 Haftalık PDF</div>
+    <div style="font-size:13px;color:var(--muted);text-align:center;margin-bottom:16px;">Hangi haftanın çıktısını almak istiyorsunuz?</div>
+    <div style="display:flex;flex-direction:column;gap:8px;" id="pdfWeekList"></div>
+    <button onclick="document.getElementById('pdfDateModal').classList.add('hidden')" style="width:100%;margin-top:12px;padding:10px;border-radius:10px;border:none;background:transparent;color:var(--muted);font-size:13px;cursor:pointer;">İptal</button>
+  </div>
+</div>
+
 <!-- KOD UYGULAMA MODAL -->
 <div class="modal-overlay hidden" id="codeModal">
   <div class="modal-sheet" style="max-width:320px;margin:auto;padding:24px 20px;text-align:center;">
@@ -1239,6 +1249,8 @@ async function applyCode(mode){
   closeCodeModal();
 
   showSync('⏫ Kaydediliyor...','#facc15');
+
+  // Cloud'dan güncel veriyi çek ve merge et
   try{
     const cloudData = await loadFromCloud(currentFloor, window._activeKey||todayKey);
     if(cloudData && Object.keys(cloudData).length>0){
@@ -1252,15 +1264,20 @@ async function applyCode(mode){
   if(mode==='all'){
     TIMES.forEach(t=>{
       if(!attendanceHistory[t]) attendanceHistory[t]={};
-      attendanceHistory[t][id]=newVal;
+      attendanceHistory[t][id] = newVal;
     });
   } else {
     if(!attendanceHistory[currentTime]) attendanceHistory[currentTime]={};
-    attendanceHistory[currentTime][id]=newVal;
+    attendanceHistory[currentTime][id] = newVal;
   }
-  attendance[id]=newVal;
+
+  // Aktif vakitteki attendance'ı güncelle
+  attendance[id] = attendanceHistory[currentTime][id] !== undefined
+    ? attendanceHistory[currentTime][id]
+    : newVal;
 
   updateRow(id); updateStats();
+
   try{
     await saveToCloud(currentFloor, window._activeKey||todayKey, attendanceHistory);
     showSync('✅ Kaydedildi');
@@ -1803,20 +1820,46 @@ function toASCII(str) {
 // ══════════════════════════════════════
 // PDF EXPORT — Dikey A4, tek sayfa
 // ══════════════════════════════════════
-async function exportPDF() {
+function exportPDF() {
+  // Son 4 haftayı listele
+  const modal = document.getElementById('pdfDateModal');
+  const list = document.getElementById('pdfWeekList');
+  list.innerHTML = '';
+  for(let w=0; w<4; w++){
+    const mon = new Date(today);
+    const d = today.getDay()===0?6:today.getDay()-1;
+    mon.setDate(today.getDate() - d - w*7);
+    const sun = new Date(mon); sun.setDate(mon.getDate()+6);
+    const label = mon.toLocaleDateString('tr-TR',{day:'2-digit',month:'2-digit'}) + ' – ' + sun.toLocaleDateString('tr-TR',{day:'2-digit',month:'2-digit'});
+    const btn = document.createElement('button');
+    btn.style.cssText='padding:12px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-size:14px;font-weight:600;cursor:pointer;text-align:left;';
+    btn.textContent = (w===0?'📅 Bu hafta: ':'📅 ') + label;
+    btn.onclick = ()=>{
+      modal.classList.add('hidden');
+      _buildPDF(mon);
+    };
+    list.appendChild(btn);
+  }
+  modal.classList.remove('hidden');
+}
+
+async function _buildPDF(weekStart) {
   attendanceHistory[currentTime] = {...attendance};
   saveToStorage();
   showSync('⏬ Veriler alınıyor...','#0099ff');
   showToast('⏳ PDF hazırlanıyor...');
-  setTimeout(async () => { await _buildPDF(); hideSync(); }, 100);
-}
+  await new Promise(r=>setTimeout(r,100));
 
-async function _buildPDF() {
   const { jsPDF } = window.jspdf;
-  const weekDates = getWeekDates();
+  // Seçilen haftanın günlerini üret
+  const weekDates = Array.from({length:7},(_,i)=>{
+    const dt = new Date(weekStart); dt.setDate(weekStart.getDate()+i);
+    const key = dt.getFullYear()+'_'+String(dt.getMonth()+1).padStart(2,'0')+'_'+String(dt.getDate()).padStart(2,'0');
+    return{key, label:DAYS[i], short:dt.toLocaleDateString('tr-TR',{day:'2-digit',month:'2-digit'})};
+  });
   // Vakit isimleri - ASCII only
-  const VAKITLER     = ['Aksam','Etut','Yatsi','Uyku','Sabah','Tel'];
-  const VAKIT_KEYS   = ['Akşam','Etüt','Yatsı','Uyku','Sabah','Telefon'];
+  const VAKITLER     = ['Aksam','Tel','Etut','Yatsi','Uyku','Sabah'];
+  const VAKIT_KEYS   = ['Akşam','Telefon','Etüt','Yatsı','Uyku','Sabah'];
   const DAY_ABBR     = ['Pzt','Sal','Car','Per','Cum','Cmt','Paz'];
 
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
