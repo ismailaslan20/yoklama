@@ -1132,7 +1132,8 @@ async function lockCurrentTime(){
       const newLocked = locked.filter(t=>t!==currentTime);
       localStorage.setItem('locked_'+activeKey, JSON.stringify(newLocked));
       fetch(FB_URL+'/locks/'+fbKey+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(newLocked)}).catch(()=>{});
-      updateSaveBtn();
+      updateSaveBtn(newLocked);
+      renderAll();
       showToast('🔓 '+currentTime+' vakti açıldı');
     } else {
       showToast('🚫 Yanlış PIN!');
@@ -1150,12 +1151,12 @@ async function lockCurrentTime(){
   showToast('🔒 '+currentTime+' vakti kilitlendi!');
 }
 
-async function updateSaveBtn(){
+async function updateSaveBtn(forceLocked){
   const btn = document.getElementById('saveBtn');
   if(!btn) return;
   if(isAdmin){ btn.style.display='none'; return; }
   btn.style.display='';
-  const locked = await getLockedTimes();
+  const locked = forceLocked !== undefined ? forceLocked : await getLockedTimes();
   if(locked.includes(currentTime)){
     btn.textContent = '🔓 Kilidi Aç';
     btn.classList.add('locked');
