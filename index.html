@@ -1379,7 +1379,7 @@ function renderAll(){
     const rs=visible.filter(s=>s.room===room);
     const pres=rs.filter(s=>attendance[String(s.id)]===true).length;
     const cod=rs.filter(s=>typeof attendance[String(s.id)]==='string').length;
-    html+=`<div class="room-header"><div class="room-badge">ODA ${room}</div><div class="room-divider"></div><div class="room-count">${pres} mevcut${cod?` • ${cod} kodlu`:''}</div><button onclick="markRoomPresent(${room})" style="margin-left:auto;padding:3px 8px;border-radius:6px;border:none;background:var(--present);color:#000;font-size:11px;font-weight:700;cursor:pointer;">✅ Odayı İşaretle</button></div>`;
+    html+=`<div class="room-header"><div class="room-badge">ODA ${room}</div><div class="room-divider"></div><div class="room-count">${pres} mevcut${cod?` • ${cod} kodlu`:''}</div>${!isAdmin?`<button onclick="markRoomPresent(${room})" style="margin-left:auto;padding:3px 8px;border-radius:6px;border:none;background:var(--present);color:#000;font-size:11px;font-weight:700;cursor:pointer;">✅ Odayı İşaretle</button>`:''}</div>`;
     rs.forEach(s=>{
       const st=attendance[String(s.id)];
       const locked=isLocked(s.id);
@@ -1392,20 +1392,21 @@ function renderAll(){
       if(locked)rowCls+=' st-locked';
       const codeHtml=isAdmin?`<div class="code-btns">${CODES.map(c=>`<button class="code-btn${st===c?' active-'+CODE_CLS[c]:''}" id="code-${c}-${s.id}" onclick="event.stopPropagation();setCode(${s.id},'${c}')">${c}</button>`).join('')}</div>`:'';
 
-      // Tik butonu: kod varsa harf göster, kilitli yap
+      // Tik butonu: admin için gizle
       let tickCls='tick-btn';
       let tickContent='';
       if(st===true){ tickCls+=' ticked'; }
       else if(st==='I'){ tickCls+=' code-i locked'; tickContent='I'; }
       else if(st==='R'){ tickCls+=' code-r locked'; tickContent='R'; }
       else if(st==='E'){ tickCls+=' code-e locked'; tickContent='E'; }
+      const tickHtml = isAdmin ? '' : `<button class="${tickCls}" id="tick-${s.id}" onclick="event.stopPropagation();toggle(${s.id})">${tickContent}</button>`;
 
-      html+=`<div class="${rowCls}" id="row-${s.id}" onclick="toggle(${s.id})">
+      html+=`<div class="${rowCls}" id="row-${s.id}" onclick="${isAdmin?'':('toggle('+s.id+')')}">
         <div class="student-info">
           <div class="student-name">${s.name}</div>
           <div class="student-meta">${s.cls} • Oda ${s.room}</div>
         </div>
-        <div class="status-area">${codeHtml}<button class="${tickCls}" id="tick-${s.id}" onclick="event.stopPropagation();toggle(${s.id})">${tickContent}</button></div>
+        <div class="status-area">${codeHtml}${tickHtml}</div>
       </div>`;
     });
   });
