@@ -2937,14 +2937,14 @@ async function _buildPDF(weekStart) {
       doc.setDrawColor(0); doc.setLineWidth(0.4);
       doc.line(gx + 2, y + H_SIGN - 10, gx + gw - 2, y + H_SIGN - 10);
 
-      // Öğretmen adı — sadece Firebase'den oku
+      // Öğretmen adı — imza çizgisinin hemen üstünde
       const fbKey = 'f'+floor+'_'+d.key;
       const tName = toASCII(
         (teacherNames[fbKey] && teacherNames[fbKey].name) || ''
       );
       if(tName){
         doc.setFontSize(4.5); doc.setFont('helvetica','bold'); doc.setTextColor(0);
-        doc.text(tName, gx + gw/2, y + 5, {align:'center'});
+        doc.text(tName, gx + gw/2, y + H_SIGN - 13, {align:'center'});
       }
 
       // "Belletmen Ogretmen" etiketi
