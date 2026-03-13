@@ -2910,11 +2910,11 @@ async function _buildPDF(weekStart) {
     doc.setDrawColor(0); doc.setLineWidth(0.4);
     doc.line(ML + 3, y + H_SIGN - 10, ML + W_LEFT - 3, y + H_SIGN - 10);
 
-    // Müdür Yardımcısı adı — imza çizgisinin üstünde
+    // Müdür Yardımcısı adı — imza çizgisinin ALTINDA
     doc.setFontSize(5); doc.setFont('helvetica','bold'); doc.setTextColor(0);
-    doc.text('Ertugrul DAGDELEN', ML + W_LEFT/2, y + H_SIGN - 13, {align:'center'});
+    doc.text('Ertugrul DAGDELEN', ML + W_LEFT/2, y + H_SIGN - 4.5, {align:'center'});
 
-    // Ünvan
+    // Ünvan — imza çizgisinin altında
     doc.setFontSize(4.5); doc.setFont('helvetica','bold'); doc.setTextColor(0);
     doc.text('Mudur Yardimcisi', ML + W_LEFT/2, y + H_SIGN - 7.5, {align:'center'});
 
@@ -2937,17 +2937,17 @@ async function _buildPDF(weekStart) {
       doc.setDrawColor(0); doc.setLineWidth(0.4);
       doc.line(gx + 2, y + H_SIGN - 10, gx + gw - 2, y + H_SIGN - 10);
 
-      // Öğretmen adı — imza çizgisinin hemen üstünde
+      // Öğretmen adı — imza çizgisinin ALTINDA
       const fbKey = 'f'+floor+'_'+d.key;
       const tName = toASCII(
         (teacherNames[fbKey] && teacherNames[fbKey].name) || ''
       );
       if(tName){
         doc.setFontSize(4.5); doc.setFont('helvetica','bold'); doc.setTextColor(0);
-        doc.text(tName, gx + gw/2, y + H_SIGN - 13, {align:'center'});
+        doc.text(tName, gx + gw/2, y + H_SIGN - 4.5, {align:'center'});
       }
 
-      // "Belletmen Ogretmen" etiketi
+      // "Belletmen Ogretmen" etiketi — imza çizgisinin altında
       doc.setFontSize(4.5); doc.setFont('helvetica','bold'); doc.setTextColor(0);
       doc.text('Belletmen Ogretmen', gx + gw/2, y + H_SIGN - 7.5, {align:'center'});
 
